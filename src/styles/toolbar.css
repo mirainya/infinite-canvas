@@ -1,0 +1,95 @@
+/* ===== 10. Floating Toolbar ===== */
+.floating-toolbar {
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  background: var(--surface);
+
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-hover);
+  z-index: 10;
+  animation: float-up 400ms var(--ease);
+}
+
+.floating-toolbar__btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border: none;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background var(--duration) var(--ease), color var(--duration) var(--ease);
+}
+
+.floating-toolbar__btn:hover {
+  background: var(--surface-hover);
+  color: var(--primary);
+}
+
+.floating-toolbar__btn--primary {
+  background: var(--gradient);
+  color: #fff;
+}
+
+.floating-toolbar__btn--primary:hover {
+  box-shadow: var(--glow-strong);
+  color: #fff;
+  transform: translateY(-1px);
+}
+
+.floating-toolbar__divider {
+  width: 1px;
+  height: 24px;
+  background: var(--border);
+  margin: 0 4px;
+}
+
+.floating-toolbar__more {
+  position: relative;
+}
+
+.floating-toolbar__dropdown {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  right: 0;
+  min-width: 180px;
+  padding: 6px;
+  background: var(--surface);
+
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-hover);
+  animation: panel-in var(--duration) var(--ease);
+}
+
+.floating-toolbar__dropdown button {
+  display: block;
+  width: 100%;
+  padding: 8px 12px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text);
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--duration) var(--ease), color var(--duration) var(--ease);
+}
+
+.floating-toolbar__dropdown button:hover {
+  background: var(--surface-hover);
+  color: var(--primary);
+}
+

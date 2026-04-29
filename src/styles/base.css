@@ -1,0 +1,122 @@
+/* ============================================
+   Infinite Canvas — Gemini × 二次元 Design System
+   ============================================ */
+
+/* ===== 1. Design Tokens ===== */
+:root {
+  --bg: #faf8ff;
+  --bg-secondary: #f3eeff;
+  --surface: rgba(255, 255, 255, 0.82);
+  --surface-hover: rgba(243, 238, 255, 0.92);
+  --surface-active: rgba(235, 229, 255, 1);
+  --text: #1a1025;
+  --text-secondary: #6b5f7d;
+  --text-tertiary: #9b8fb5;
+  --border: rgba(139, 92, 246, 0.12);
+  --border-strong: rgba(139, 92, 246, 0.25);
+  --primary: #8b5cf6;
+  --primary-light: #a78bfa;
+  --primary-dark: #6d28d9;
+  --gradient: linear-gradient(135deg, #8b5cf6, #6366f1, #3b82f6);
+  --gradient-pink: linear-gradient(135deg, #f472b6, #a855f7);
+  --gradient-cyan: linear-gradient(135deg, #22d3ee, #6366f1);
+  --accent-pink: #f472b6;
+  --accent-cyan: #22d3ee;
+  --accent-green: #34d399;
+  --accent-amber: #fbbf24;
+  --accent-red: #f87171;
+  --blur: blur(20px);
+  --glow: 0 0 20px rgba(139, 92, 246, 0.12);
+  --glow-strong: 0 0 32px rgba(139, 92, 246, 0.25);
+  --shadow: 0 4px 24px rgba(139, 92, 246, 0.06);
+  --shadow-hover: 0 8px 32px rgba(139, 92, 246, 0.12);
+  --topbar-h: 56px;
+  --nav-w: 56px;
+  --panel-w: 300px;
+  --radius: 16px;
+  --radius-lg: 24px;
+  --radius-pill: 9999px;
+  --ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --duration: 250ms;
+  --canvas-bg: #f8f6ff;
+  --canvas-dots: rgba(139, 92, 246, 0.12);
+  --wf-bg: #f8f5ff;
+  --wf-title-bg: #ede8f8;
+  --wf-input-bg: #fff;
+  --wf-text: #3d3455;
+  --wf-text-secondary: #6b5f7d;
+  --wf-text-tertiary: #9b8fb5;
+  --wf-border: rgba(139, 92, 246, 0.15);
+  --wf-border-subtle: rgba(139, 92, 246, 0.08);
+  --wf-shadow: 0 2px 8px rgba(139, 92, 246, 0.1);
+}
+
+.app--dark {
+  --bg: #0f0a1a;
+  --bg-secondary: #1a1028;
+  --surface: rgba(25, 18, 45, 0.78);
+  --surface-hover: rgba(35, 25, 60, 0.85);
+  --surface-active: rgba(45, 32, 75, 0.9);
+  --text: #e8e0f0;
+  --text-secondary: #9b8fb5;
+  --text-tertiary: #6b5f7d;
+  --border: rgba(139, 92, 246, 0.2);
+  --border-strong: rgba(139, 92, 246, 0.4);
+  --glow: 0 0 24px rgba(139, 92, 246, 0.2);
+  --glow-strong: 0 0 40px rgba(139, 92, 246, 0.45);
+  --shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
+  --shadow-hover: 0 8px 32px rgba(139, 92, 246, 0.25);
+  --canvas-bg: #0d0818;
+  --canvas-dots: rgba(139, 92, 246, 0.18);
+  --wf-bg: #1e1a2e;
+  --wf-title-bg: #2d2545;
+  --wf-input-bg: #0f0b1e;
+  --wf-text: #c8c2de;
+  --wf-text-secondary: #a09abc;
+  --wf-text-tertiary: #7d7498;
+  --wf-border: rgba(139, 92, 246, 0.15);
+  --wf-border-subtle: rgba(139, 92, 246, 0.08);
+  --wf-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+/* ===== 2. Base ===== */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body,
+#root {
+  width: 100%;
+  height: 100%;
+}
+
+body {
+  font-family: "Noto Sans SC", Inter, ui-sans-serif, system-ui, -apple-system, sans-serif;
+  color: var(--text);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ===== 3. Scrollbar ===== */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: var(--radius-pill);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--primary-light);
+}
+

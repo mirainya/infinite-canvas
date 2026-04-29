@@ -1,0 +1,191 @@
+/* ===== 4. App Layout ===== */
+.app {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  overflow: hidden;
+}
+
+.app__body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  position: relative;
+}
+
+/* ===== 5. Top Bar ===== */
+.topbar {
+  display: flex;
+  align-items: center;
+  height: var(--topbar-h);
+  padding: 0 16px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  z-index: 20;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.topbar__left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.topbar__logo {
+  font-size: 22px;
+  background: var(--gradient);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.topbar__title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.topbar__center {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+  justify-content: center;
+}
+
+.topbar__project-input {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 6px 14px;
+  font-size: 13px;
+  color: var(--text);
+  text-align: center;
+  width: 200px;
+  outline: none;
+  transition: border-color var(--duration) var(--ease), box-shadow var(--duration) var(--ease);
+}
+
+.topbar__project-input:focus {
+  border-color: var(--primary-light);
+  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.1);
+}
+
+.topbar__status {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+  padding: 4px 10px;
+  background: var(--bg-secondary);
+  border-radius: var(--radius-pill);
+}
+
+.topbar__right {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.topbar__btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 16px;
+  cursor: pointer;
+  transition: background var(--duration) var(--ease), color var(--duration) var(--ease);
+}
+
+.topbar__btn:hover {
+  background: var(--surface-hover);
+  color: var(--primary);
+}
+
+.topbar__credits {
+  font-size: 13px;
+  color: var(--text-secondary);
+  padding: 4px 10px;
+  border-radius: var(--radius);
+  background: var(--surface-hover);
+  white-space: nowrap;
+}
+
+/* ===== 6. Icon Navigation ===== */
+.icon-nav {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: var(--nav-w);
+  padding: 12px 0;
+  gap: 4px;
+  background: var(--surface);
+
+  border-right: 1px solid var(--border);
+  flex-shrink: 0;
+  z-index: 15;
+}
+
+.icon-nav__item {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 18px;
+  cursor: pointer;
+  transition: background var(--duration) var(--ease), color var(--duration) var(--ease);
+  position: relative;
+}
+
+.icon-nav__item:hover {
+  background: var(--surface-hover);
+  color: var(--primary);
+  box-shadow: var(--glow);
+}
+
+.icon-nav__item--active {
+  background: var(--bg-secondary);
+  color: var(--primary);
+  box-shadow: var(--glow);
+}
+
+.icon-nav__item--active::before {
+  content: "";
+  position: absolute;
+  left: -8px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 20px;
+  border-radius: var(--radius-pill);
+  background: var(--gradient);
+}
+
+/* ===== 7. Canvas Area ===== */
+.canvas-area {
+  flex: 1;
+  position: relative;
+  min-width: 0;
+}
+
+/* sparkle-drift disabled for performance */
+

@@ -1,0 +1,213 @@
+/* ===== 11. AI Node ===== */
+.ai-node {
+  min-width: 280px;
+  max-width: 340px;
+  padding: 18px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--primary);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  transition: border-color var(--duration) var(--ease), box-shadow var(--duration) var(--ease);
+  position: relative;
+  will-change: transform;
+}
+
+.ai-node:hover {
+  box-shadow: var(--shadow-hover), var(--glow);
+  border-color: var(--border-strong);
+}
+
+.ai-node .react-flow__handle {
+  width: 10px;
+  height: 10px;
+  background: var(--primary);
+  border: 2px solid var(--surface-active);
+  border-radius: 50%;
+  transition: background var(--duration) var(--ease), box-shadow var(--duration) var(--ease);
+}
+
+.ai-node .react-flow__handle:hover {
+  background: var(--accent-pink);
+  box-shadow: 0 0 10px var(--accent-pink);
+  transform: scale(1.3);
+}
+
+.ai-node__title {
+  width: 100%;
+  border: none;
+  background: transparent;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  outline: none;
+  padding: 0 0 8px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 10px;
+  font-family: inherit;
+}
+
+.ai-node__title::placeholder {
+  color: var(--text-tertiary);
+}
+
+.ai-node textarea {
+  width: 100%;
+  min-height: 60px;
+  resize: vertical;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: var(--bg-secondary);
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.5;
+  font-family: inherit;
+  outline: none;
+  transition: border-color var(--duration) var(--ease), box-shadow var(--duration) var(--ease);
+}
+
+.ai-node textarea:focus {
+  border-color: var(--primary-light);
+  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.1);
+}
+
+.ai-node textarea::placeholder {
+  color: var(--text-tertiary);
+}
+
+.ai-node button {
+  width: 100%;
+  margin-top: 10px;
+  border: none;
+  border-radius: var(--radius-pill);
+  padding: 10px 16px;
+  background: var(--gradient);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--duration) var(--ease), color var(--duration) var(--ease);
+  font-family: inherit;
+}
+
+.ai-node button:hover:not(:disabled) {
+  box-shadow: var(--glow-strong);
+  transform: translateY(-1px);
+}
+
+.ai-node button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.ai-node__result,
+.ai-node__error {
+  margin-top: 10px;
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-size: 13px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+.ai-node__result {
+  background: rgba(52, 211, 153, 0.1);
+  border: 1px solid rgba(52, 211, 153, 0.2);
+  color: var(--accent-green);
+}
+
+.app--dark .ai-node__result {
+  color: #6ee7b7;
+}
+
+.ai-node__error {
+  background: rgba(248, 113, 113, 0.1);
+  border: 1px solid rgba(248, 113, 113, 0.2);
+  color: var(--accent-red);
+}
+
+/* ===== 12. Group Node ===== */
+.group-node {
+  min-width: 100%;
+  min-height: 100%;
+  padding: 20px;
+  border: 2px dashed var(--border-strong);
+  border-radius: var(--radius-lg);
+  background: rgba(139, 92, 246, 0.04);
+  transition: border-color var(--duration) var(--ease), box-shadow var(--duration) var(--ease);
+  position: relative;
+  will-change: transform;
+}
+
+.app--dark .group-node {
+  background: rgba(139, 92, 246, 0.06);
+}
+
+.group-node:hover {
+  border-color: var(--primary-light);
+  box-shadow: var(--glow);
+}
+
+.group-node__title {
+  border: none;
+  background: transparent;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  outline: none;
+  font-family: inherit;
+  width: 100%;
+}
+
+.group-node__title::placeholder {
+  color: var(--text-tertiary);
+}
+
+.group-node__tags {
+  margin-top: 6px;
+}
+
+.group-node__note {
+  margin-top: 6px;
+}
+
+.group-node__hint {
+  position: absolute;
+  bottom: 8px;
+  right: 12px;
+  font-size: 11px;
+  color: var(--text-tertiary);
+  opacity: 0.6;
+}
+
+/* ===== 13. Shared: Tags & Badges ===== */
+.node-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 8px;
+}
+
+.node-tags span {
+  display: inline-block;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 500;
+  border-radius: var(--radius-pill);
+  background: rgba(139, 92, 246, 0.1);
+  color: var(--primary);
+  border: 1px solid rgba(139, 92, 246, 0.15);
+}
+
+.node-note-badge {
+  display: inline-block;
+  margin-top: 6px;
+  padding: 2px 8px;
+  font-size: 11px;
+  border-radius: var(--radius-pill);
+  background: rgba(244, 114, 182, 0.1);
+  color: var(--accent-pink);
+  border: 1px solid rgba(244, 114, 182, 0.15);
+}
+
