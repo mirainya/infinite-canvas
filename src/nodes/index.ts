@@ -9,6 +9,7 @@ function parseRawDefs(defs: Array<{
   def_id: string;
   name: string;
   category: string;
+  view?: string;
   inputs: Array<{ id: string; label: string; type: string; required?: boolean }>;
   outputs: Array<{ id: string; label: string; type: string }>;
   controls: Array<Record<string, unknown>>;
@@ -19,6 +20,7 @@ function parseRawDefs(defs: Array<{
       defId: raw.def_id,
       name: raw.name,
       category: raw.category,
+      view: raw.view,
       inputs: raw.inputs.map((p) => ({ id: p.id, label: p.label, type: p.type as NodeDefinition['inputs'][0]['type'], required: p.required })),
       outputs: raw.outputs.map((p) => ({ id: p.id, label: p.label, type: p.type as NodeDefinition['outputs'][0]['type'] })),
       controls: raw.controls as NodeDefinition['controls'],

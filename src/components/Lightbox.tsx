@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { createPortal } from 'react-dom';
 
 export default function Lightbox({ src, alt, onClose }: { src: string; alt?: string; onClose: () => void }) {
   useEffect(() => {
@@ -7,9 +8,10 @@ export default function Lightbox({ src, alt, onClose }: { src: string; alt?: str
     return () => window.removeEventListener('keydown', h);
   }, [onClose]);
 
-  return (
+  return createPortal(
     <div className="lightbox" onClick={onClose}>
       <img className="lightbox__img" src={src} alt={alt} onClick={(e) => e.stopPropagation()} draggable={false} />
-    </div>
+    </div>,
+    document.body,
   );
 }

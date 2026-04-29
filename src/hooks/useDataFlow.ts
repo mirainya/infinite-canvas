@@ -9,9 +9,13 @@ export function useDataFlow(
   setNodes: Dispatch<SetStateAction<Node<CanvasNodeData>[]>>,
   setStatus: (status: string) => void,
   ctx: SystemContext,
+  nodes: Node<CanvasNodeData>[],
 ) {
   const edgesRef = useRef(edges);
   useEffect(() => { edgesRef.current = edges; });
+
+  const nodesRef = useRef(nodes);
+  useEffect(() => { nodesRef.current = nodes; });
 
   const propagate = useCallback(
     (sourceNodeId: string, sourcePortValues: PortValues) => {
@@ -41,19 +45,7 @@ export function useDataFlow(
   );
 
   const runWorkflow = useCallback(async () => {
-    setNodes((cur) => {
-      const workflowNodes = cur.filter((n) => n.data.defId);
-      if (workflowNodes.length === 0) return cur;
-      return cur;
-    });
-
-    // Read current state synchronously via a ref-like trick: capture from setNodes
-    let curNodes: Node<CanvasNodeData>[] = [];
-    setNodes((cur) => { curNodes = cur; return cur; });
-    // Wait for React to flush so curNodes is populated
-    await new Promise((r) => setTimeout(r, 0));
-    setNodes((cur) => { curNodes = cur; return cur; });
-
+    const curNodes = nodesRef.current;
     const curEdges = edgesRef.current;
     const workflowNodes = curNodes.filter((n) => n.data.defId);
     if (workflowNodes.length === 0) { setStatus('没有可执行的工作流节点'); return; }

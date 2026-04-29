@@ -75,6 +75,21 @@
   cursor: pointer;
   text-align: center;
 }
+.login-card__remember {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  user-select: none;
+}
+.login-card__remember input[type="checkbox"] {
+  accent-color: var(--primary);
+  width: 14px;
+  height: 14px;
+  cursor: pointer;
+}
 
 /* ===== Lightbox ===== */
 .lightbox {

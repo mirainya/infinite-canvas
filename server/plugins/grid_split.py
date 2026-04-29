@@ -20,13 +20,14 @@ NODE_DEF = {
 }
 
 
-def _to_image(src: str) -> Image.Image:
+async def _to_image(src: str) -> Image.Image:
     if src.startswith("data:"):
         header, b64 = src.split(",", 1)
         return Image.open(io.BytesIO(base64.b64decode(b64)))
-    resp = httpx.get(src, timeout=60, follow_redirects=True)
-    resp.raise_for_status()
-    return Image.open(io.BytesIO(resp.content))
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(src, timeout=60, follow_redirects=True)
+        resp.raise_for_status()
+        return Image.open(io.BytesIO(resp.content))
 
 
 def _image_to_data_url(img: Image.Image, fmt: str = "PNG") -> str:
@@ -46,7 +47,7 @@ async def process(inputs: dict, controls: dict, context: dict) -> dict:
     parts = grid_str.split("x")
     cols, rows = int(parts[0]), int(parts[1])
 
-    img = _to_image(src)
+    img = await _to_image(src)
     w, h = img.size
     cell_w, cell_h = w // cols, h // rows
 

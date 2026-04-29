@@ -12,6 +12,7 @@ export type ControlDef =
   | { kind: 'number'; id: string; label: string; min?: number; max?: number; step?: number; default?: number }
   | { kind: 'select'; id: string; label: string; options: string[]; default?: string }
   | { kind: 'imageUpload'; id: string; label: string }
+  | { kind: 'imageUploadMulti'; id: string; label: string; max?: number }
   | { kind: 'imageEdit'; id: string; label: string };
 
 export type PortValues = Record<string, string | number | null>;
@@ -24,6 +25,7 @@ export type NodeDefinition = {
   defId: string;
   name: string;
   category: string;
+  view?: string;
   inputs: PortDef[];
   outputs: PortDef[];
   controls: ControlDef[];

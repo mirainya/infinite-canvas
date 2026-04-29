@@ -8,7 +8,7 @@ from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 
 from auth import require_admin
-from db import init_db, close_db, get_pool, get_config
+from db import init_db, close_db, get_pool
 from plugin_loader import load_plugins, reload_plugins, get_all_node_defs, PLUGINS_DIR
 from routers import sources, nodes, execute, meta_prompt, auth, admin
 
@@ -52,24 +52,6 @@ async def lifespan(app: FastAPI):
     await init_db()
     load_plugins()
 
-    # ── CORS origins: env var > db config > default dev fallback ──
-    env_origins = os.environ.get("CORS_ORIGINS", "").strip()
-    if env_origins:
-        origins = [o.strip() for o in env_origins.split(",") if o.strip()]
-    else:
-        db_origins = await get_config("cors_origins")
-        if db_origins:
-            origins = [o.strip() for o in db_origins.split(",") if o.strip()]
-        else:
-            origins = ["http://localhost:5173", "http://localhost:4173"]
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=origins,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
-    logger.info("CORS 允许来源: %s", origins)
-
     _observer = Observer()
     _observer.schedule(_PluginFileHandler(), PLUGINS_DIR, recursive=False)
     _observer.start()
@@ -85,6 +67,16 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Infinite Canvas", lifespan=lifespan)
+
+# ── CORS: env var > default dev fallback (db config removed — not available before startup) ──
+_env_origins = os.environ.get("CORS_ORIGINS", "").strip()
+_origins = (
+    [o.strip() for o in _env_origins.split(",") if o.strip()]
+    if _env_origins
+    else ["http://localhost:5173", "http://localhost:4173", "http://localhost:9874"]
+)
+app.add_middleware(CORSMiddleware, allow_origins=_origins, allow_methods=["*"], allow_headers=["*"])
+logger.info("CORS 允许来源: %s", _origins)
 
 app.include_router(auth.router)
 app.include_router(admin.router)

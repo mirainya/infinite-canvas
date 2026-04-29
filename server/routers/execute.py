@@ -3,12 +3,14 @@ import time
 from decimal import Decimal
 
 from fastapi import APIRouter, HTTPException, Depends
+from pydantic import BaseModel
 import httpx
 from auth import get_current_user
 from db import get_pool
 from models import ExecuteRequest
 from plugin_loader import get_processor, get_node_def
 from routers.meta_prompt import generate_meta_prompt, MetaPromptRequest
+from xfs import upload_data_uri
 
 logger = logging.getLogger(__name__)
 
@@ -67,6 +69,22 @@ async def _auto_meta_prompt(image_url: str, action: str, source_id: int | None) 
     except Exception as e:
         logger.warning("auto meta-prompt 失败，跳过: %s", e)
         return ""
+
+
+class _UploadBody(BaseModel):
+    image: str
+
+
+@router.post("/upload")
+async def upload_image(body: _UploadBody, _user: dict = Depends(get_current_user)):
+    if not body.image:
+        raise HTTPException(400, "缺少图片数据")
+    async with httpx.AsyncClient(timeout=httpx.Timeout(60.0)) as client:
+        try:
+            url = await upload_data_uri(client, body.image, "infinite-canvas/upload")
+        except Exception as e:
+            raise HTTPException(500, str(e))
+    return {"url": url}
 
 
 @router.post("/execute")

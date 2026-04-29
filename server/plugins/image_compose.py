@@ -14,6 +14,7 @@ NODE_DEF = {
     "def_id": "image-compose",
     "name": "AI 合成",
     "category": "生成",
+    "view": "image-compose",
     "inputs": [
         {"id": "foreground", "label": "素材图", "type": "IMAGE"},
         {"id": "background", "label": "底图", "type": "IMAGE"},

@@ -56,6 +56,20 @@ async def decode_token(token: str) -> dict:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "无效 token")
 
 
+async def decode_token_allow_expired(token: str, max_grace_days: int = 7) -> dict:
+    secret = await _get_secret_key()
+    try:
+        payload = jwt.decode(token, secret, algorithms=[ALGORITHM], options={"verify_exp": False})
+    except jwt.InvalidTokenError:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "无效 token")
+    exp = payload.get("exp")
+    if exp:
+        expired_at = datetime.fromtimestamp(exp, tz=timezone.utc)
+        if datetime.now(timezone.utc) - expired_at > timedelta(days=max_grace_days):
+            raise HTTPException(status.HTTP_401_UNAUTHORIZED, "token 已过期超过宽限期")
+    return payload
+
+
 async def get_current_user(cred: HTTPAuthorizationCredentials = Depends(_bearer)) -> dict:
     return await decode_token(cred.credentials)
 

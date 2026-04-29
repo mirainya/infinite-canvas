@@ -2,9 +2,10 @@
 
 import logging
 from pydantic import BaseModel
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 import httpx
 
+from auth import get_current_user
 from db import get_pool
 
 logger = logging.getLogger(__name__)
@@ -95,7 +96,7 @@ def _extract_prompt(text: str) -> str:
 
 
 @router.post("/meta-prompt", response_model=MetaPromptResponse)
-async def generate_meta_prompt(body: MetaPromptRequest):
+async def generate_meta_prompt(body: MetaPromptRequest, _user: dict = Depends(get_current_user)):
     source = await _get_source(body.source_id)
     if not source:
         raise HTTPException(400, "未配置 API 来源")

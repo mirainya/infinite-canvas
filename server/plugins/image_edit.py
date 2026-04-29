@@ -14,6 +14,7 @@ NODE_DEF = {
     "def_id": "image-edit",
     "name": "AI 改图",
     "category": "生成",
+    "view": "image-edit",
     "inputs": [{"id": "image", "label": "原图", "type": "IMAGE"}],
     "outputs": [{"id": "image", "label": "图片", "type": "IMAGE"}],
     "controls": [

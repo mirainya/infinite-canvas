@@ -10,6 +10,8 @@ import {
 } from './components/ConnectedPanels';
 import FloatingToolbar from './components/FloatingToolbar';
 import ImageEditor from './components/ImageEditor';
+import ProfileModal from './components/ProfileModal';
+import PasswordModal from './components/PasswordModal';
 import {
   NodeLibraryPanel,
   ProjectsPanel,
@@ -35,7 +37,7 @@ import { useNodeFocus } from './hooks/useNodeFocus';
 import { loadNodeDefs, subscribeNodeChanges } from './nodes';
 import { readCanvasSettings, readSavedSnapshot } from './storage';
 import type { CanvasNodeData, CanvasSettings } from './types';
-import { LoginPage, getToken, clearToken, getCredits, setCredits, authHeaders } from './components/LoginPage';
+import { LoginPage, getToken, clearToken, getCredits, setCredits, authHeaders, verifyToken, getUsername, getNickname, getAvatar, setUserInfo, apiFetch } from './components/LoginPage';
 import 'reactflow/dist/style.css';
 
 type PanelId = 'search' | 'templates' | 'nodeLibrary' | 'stats' | 'versions' | 'projects' | 'settings' | 'inspector' | null;
@@ -53,6 +55,25 @@ const NAV_ITEMS: { id: PanelId; icon: string; label: string }[] = [
 
 function App() {
   const [authed, setAuthed] = useState(() => !!getToken());
+  const [checking, setChecking] = useState(() => !!getToken());
+
+  useEffect(() => {
+    if (!authed) return;
+    verifyToken().then((ok) => {
+      if (!ok) setAuthed(false);
+      setChecking(false);
+    });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    const onExpired = () => { setAuthed(false); };
+    window.addEventListener('auth-expired', onExpired);
+    return () => window.removeEventListener('auth-expired', onExpired);
+  }, []);
+
+  if (checking) {
+    return <div className="login-page"><span style={{ color: 'var(--text-secondary)' }}>验证登录中...</span></div>;
+  }
 
   if (!authed) {
     return <LoginPage onSuccess={() => setAuthed(true)} />;
@@ -72,6 +93,11 @@ function Canvas({ onLogout }: { onLogout: () => void }) {
   const [canvasSettings, setCanvasSettings] = useState<CanvasSettings>(() => readCanvasSettings());
   const [activePanel, setActivePanel] = useState<PanelId>(null);
   const [credits, setCreditsState] = useState(getCredits);
+  const [username, setUsernameState] = useState(getUsername);
+  const [nickname, setNicknameState] = useState(getNickname);
+  const [avatar, setAvatarState] = useState(getAvatar);
+  const [showProfileModal, setShowProfileModal] = useState(false);
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const projectInputRef = useRef<HTMLInputElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -272,8 +298,13 @@ function Canvas({ onLogout }: { onLogout: () => void }) {
         onProjectNameChange={setProjectName}
         status={status}
         credits={credits}
+        username={username}
+        nickname={nickname}
+        avatar={avatar}
         onShowShortcuts={() => setShowShortcutHelp(true)}
         onLogout={onLogout}
+        onEditProfile={() => setShowProfileModal(true)}
+        onEditPassword={() => setShowPasswordModal(true)}
       />
 
       <div className="app__body">
@@ -311,7 +342,7 @@ function Canvas({ onLogout }: { onLogout: () => void }) {
                 />
               )}
               {activePanel === 'templates' && <TemplatePanel onAddTemplate={addTemplateNode} />}
-              {activePanel === 'nodeLibrary' && <NodeLibraryPanel onAddNode={addWorkflowNode} />}
+              {activePanel === 'nodeLibrary' && <NodeLibraryPanel />}
               {activePanel === 'stats' && (
                 <StatsPanelConnected
                   coreRef={coreRef}
@@ -432,6 +463,23 @@ function Canvas({ onLogout }: { onLogout: () => void }) {
           }}}
           onClose={handleImageEditorClose}
         />
+      )}
+
+      {showProfileModal && (
+        <ProfileModal
+          nickname={nickname}
+          avatar={avatar}
+          onClose={() => setShowProfileModal(false)}
+          onSaved={(info) => {
+            setNicknameState(info.nickname);
+            setAvatarState(info.avatar);
+            setShowProfileModal(false);
+          }}
+        />
+      )}
+
+      {showPasswordModal && (
+        <PasswordModal onClose={() => setShowPasswordModal(false)} />
       )}
     </main>
   );

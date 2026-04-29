@@ -133,7 +133,7 @@ const CanvasCore = forwardRef<CanvasCoreHandle, CanvasCoreProps>(function Canvas
     },
   }), []);
 
-  const { propagate, runWorkflow } = useDataFlow(edges, setNodes, setStatus, systemContext);
+  const { propagate, runWorkflow } = useDataFlow(edges, setNodes, setStatus, systemContext, nodes);
 
   const [dragOver, setDragOver] = useState(false);
 

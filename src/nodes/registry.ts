@@ -17,10 +17,11 @@ export type NodeBodyProps = {
 
 const bodyRegistry = new Map<string, ComponentType<NodeBodyProps>>();
 
-export function registerNodeBody(defId: string, component: ComponentType<NodeBodyProps>) {
-  bodyRegistry.set(defId, component);
+export function registerNodeBody(view: string, component: ComponentType<NodeBodyProps>) {
+  bodyRegistry.set(view, component);
 }
 
-export function getNodeBody(defId: string): ComponentType<NodeBodyProps> | undefined {
-  return bodyRegistry.get(defId);
+export function getNodeBody(view?: string): ComponentType<NodeBodyProps> | undefined {
+  if (!view || view === 'default') return undefined;
+  return bodyRegistry.get(view);
 }

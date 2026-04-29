@@ -35,7 +35,7 @@ export function TemplatePanel({ onAddTemplate }: { onAddTemplate: (template: Nod
   );
 }
 
-export function NodeLibraryPanel({ onAddNode }: { onAddNode: (defId: string) => void }) {
+export function NodeLibraryPanel() {
   const grouped = getNodesByCategory();
   return (
     <div className="panel-templates">
@@ -54,12 +54,12 @@ export function NodeLibraryPanel({ onAddNode }: { onAddNode: (defId: string) => 
                 const ghost = e.currentTarget.cloneNode(true) as HTMLElement;
                 ghost.style.position = 'absolute';
                 ghost.style.top = '-1000px';
+                ghost.style.width = `${e.currentTarget.offsetWidth}px`;
                 ghost.classList.add('drag-ghost');
                 document.body.appendChild(ghost);
                 e.dataTransfer.setDragImage(ghost, 0, 0);
                 requestAnimationFrame(() => ghost.remove());
               }}
-              onClick={() => onAddNode(def.defId)}
             >
               <span className="panel-templates__dot" style={{ background: '#34d399' }} />
               <span>{def.name}</span>

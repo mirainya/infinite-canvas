@@ -10,6 +10,7 @@ import Lightbox from './Lightbox';
 import {
   ImageEditControl,
   ImageUploadControl,
+  ImageUploadMultiControl,
   NumberControl,
   SelectControl,
   TextControl,
@@ -57,7 +58,7 @@ function WorkflowNode({ id, data, selected }: NodeProps<CanvasNodeData>) {
     }
   }, [running, def, ctx, id, pv, propagate]);
 
-  const CustomBody = useMemo(() => (def ? getNodeBody(def.defId) : null), [def]);
+  const CustomBody = useMemo(() => (def ? getNodeBody(def.view) : null), [def]);
 
   if (!def) return <div className="wf wf--error">未知节点</div>;
 
@@ -72,6 +73,8 @@ function WorkflowNode({ id, data, selected }: NodeProps<CanvasNodeData>) {
         return <SelectControl key={ctrl.id} id={ctrl.id} label={ctrl.label} value={(pv[ctrl.id] as string) ?? ctrl.default ?? ctrl.options[0] ?? ''} options={ctrl.options} onChange={(v) => updatePV(ctrl.id, v)} />;
       case 'imageUpload':
         return <ImageUploadControl key={ctrl.id} id={ctrl.id} label={ctrl.label} value={(pv[ctrl.id] as string) ?? null} onChange={(v) => updatePV(ctrl.id, v)} />;
+      case 'imageUploadMulti':
+        return <ImageUploadMultiControl key={ctrl.id} id={ctrl.id} label={ctrl.label} max={ctrl.max} value={(pv[ctrl.id] as string) ?? null} onChange={(v) => updatePV(ctrl.id, v)} />;
       case 'imageEdit':
         return <ImageEditControl key={ctrl.id} id={ctrl.id} label={ctrl.label} imageSrc={(pv['input-image'] as string) ?? (pv[ctrl.id] as string) ?? null} rectValue={(pv[`${ctrl.id}_rect`] as string) ?? null} onImageChange={(v) => updatePV(ctrl.id, v)} onRectChange={(v) => updatePV(`${ctrl.id}_rect`, v)} />;
       default: return null;

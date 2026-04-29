@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, Depends
-from auth import get_current_user
+from auth import get_current_user, require_admin
 from db import get_pool
 from models import ApiSourceCreate, ApiSourceUpdate, ApiSourceOut
 
@@ -7,14 +7,14 @@ router = APIRouter(prefix="/api/sources", tags=["sources"])
 
 
 @router.get("", response_model=list[ApiSourceOut])
-async def list_sources():
+async def list_sources(_admin: dict = Depends(require_admin)):
     pool = await get_pool()
     rows = await pool.fetch("SELECT * FROM api_sources ORDER BY id")
     return [dict(r) for r in rows]
 
 
 @router.post("", response_model=ApiSourceOut)
-async def create_source(body: ApiSourceCreate, _user: dict = Depends(get_current_user)):
+async def create_source(body: ApiSourceCreate, _admin: dict = Depends(require_admin)):
     pool = await get_pool()
     async with pool.acquire() as conn:
         if body.is_default:
@@ -30,7 +30,7 @@ async def create_source(body: ApiSourceCreate, _user: dict = Depends(get_current
 
 
 @router.put("/{source_id}", response_model=ApiSourceOut)
-async def update_source(source_id: int, body: ApiSourceUpdate, _user: dict = Depends(get_current_user)):
+async def update_source(source_id: int, body: ApiSourceUpdate, _admin: dict = Depends(require_admin)):
     pool = await get_pool()
     async with pool.acquire() as conn:
         existing = await conn.fetchrow("SELECT * FROM api_sources WHERE id = $1", source_id)
@@ -73,7 +73,7 @@ async def update_source(source_id: int, body: ApiSourceUpdate, _user: dict = Dep
 
 
 @router.delete("/{source_id}")
-async def delete_source(source_id: int, _user: dict = Depends(get_current_user)):
+async def delete_source(source_id: int, _admin: dict = Depends(require_admin)):
     pool = await get_pool()
     result = await pool.execute("DELETE FROM api_sources WHERE id = $1", source_id)
     if result == "DELETE 0":
