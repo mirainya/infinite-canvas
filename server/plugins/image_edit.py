@@ -19,16 +19,13 @@ NODE_DEF = {
     "outputs": [{"id": "image", "label": "图片", "type": "IMAGE"}],
     "controls": [
         {"kind": "imageEdit", "id": "edit_area", "label": "编辑区域"},
+        {"kind": "select", "id": "action", "label": "操作", "options": ["替换", "擦除", "添加", "扣图"], "default": "替换"},
         {"kind": "text", "id": "edit_prompt", "label": "修改提示词", "multiline": True, "placeholder": "描述要如何修改..."},
     ],
 }
 
-ACTION_LABELS = {
-    "erase": "擦除",
-    "replace": "替换",
-    "add": "添加",
-    "extract": "扣图",
-}
+ACTION_MAP = {"擦除": "erase", "替换": "replace", "添加": "add", "扣图": "extract"}
+ACTION_LABELS = {"erase": "擦除", "replace": "替换", "add": "添加", "extract": "扣图"}
 
 
 async def process(inputs: dict, controls: dict, context: dict) -> dict:
@@ -37,9 +34,10 @@ async def process(inputs: dict, controls: dict, context: dict) -> dict:
         raise RuntimeError("未配置 API 来源，请先在设置中添加")
 
     client = context["http_client"]
-    action = (controls.get("action") or "replace").strip()
+    raw_action = (controls.get("action") or "替换").strip()
+    action = ACTION_MAP.get(raw_action, raw_action)
     prompt = (controls.get("edit_prompt") or controls.get("prompt") or "").strip()
-    mask_data = controls.get("mask") or None
+    mask_data = controls.get("edit_area") or controls.get("mask") or None
 
     mask_url = None
     if mask_data and isinstance(mask_data, str):

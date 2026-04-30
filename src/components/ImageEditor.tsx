@@ -559,15 +559,6 @@ export default function ImageEditor({ imageSrc, nodeId: _nodeId, ctx, maskOnly, 
               >
                 {running ? '处理中...' : (actionNeedsPrompt && !prompt.trim() ? '智能生成' : '执行')}
               </button>
-              <button
-                type="button"
-                className="image-editor__execute"
-                style={{ marginLeft: 4, background: '#555', fontSize: 12 }}
-                disabled={!hasSelection}
-                onClick={() => { const m = generateMask(); setMaskPreview(m); }}
-              >
-                预览Mask
-              </button>
             </div>
           </>
         )}

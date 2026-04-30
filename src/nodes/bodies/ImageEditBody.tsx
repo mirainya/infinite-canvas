@@ -4,12 +4,13 @@ import type { NodeBodyProps } from '../registry';
 
 export default function ImageEditBody({ id, def, pv, selected, running, error, updatePV, handleRun, renderCtrl }: NodeBodyProps) {
   const imgSrc = (pv['output-image'] as string) ?? (pv['input-image'] as string) ?? null;
+  const maskSrc = pv['edit_area'] as string | undefined;
   const maxPorts = Math.max(def.inputs.length, def.outputs.length);
 
   const openEditor = () => {
     if (!imgSrc) return;
     window.dispatchEvent(new CustomEvent('open-image-editor', {
-      detail: { nodeId: id, imageSrc: imgSrc },
+      detail: { nodeId: id, imageSrc: imgSrc, maskOnly: true },
     }));
   };
 
@@ -46,11 +47,25 @@ export default function ImageEditBody({ id, def, pv, selected, running, error, u
         </div>
       )}
 
-      <div className="wf__image-card nodrag" onClick={openEditor}>
+      <div className="wf__image-card nodrag" onClick={openEditor} style={{ position: 'relative' }}>
         {imgSrc ? (
           <>
             <img src={imgSrc} alt="preview" draggable={false} />
-            <div className="wf__image-card-overlay"><span>点击编辑</span></div>
+            {maskSrc && (
+              <img
+                src={maskSrc}
+                alt=""
+                draggable={false}
+                style={{
+                  position: 'absolute', inset: 0, width: '100%', height: '100%',
+                  objectFit: 'cover', opacity: 0.35, mixBlendMode: 'screen',
+                  pointerEvents: 'none',
+                }}
+              />
+            )}
+            <div className="wf__image-card-overlay">
+              <span>{maskSrc ? '点击编辑区域' : '点击标记区域'}</span>
+            </div>
           </>
         ) : (
           <div className="wf__image-card-empty">
@@ -83,7 +98,7 @@ export default function ImageEditBody({ id, def, pv, selected, running, error, u
 
       {def.controls.filter((c) => c.kind !== 'imageEdit').length > 0 && (
         <div className="wf__controls">
-          {def.controls.map(renderCtrl)}
+          {def.controls.filter((c) => c.kind !== 'imageEdit').map(renderCtrl)}
         </div>
       )}
 
