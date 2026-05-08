@@ -155,6 +155,99 @@
 
 /* -- Templates -- */
 .panel-templates { display: flex; flex-direction: column; gap: 6px; }
+
+.panel-templates__tabs {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  margin-bottom: 4px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-secondary);
+}
+.panel-templates__tabs button {
+  flex: 1;
+  padding: 6px 10px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-muted, var(--text));
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background var(--duration) var(--ease), color var(--duration) var(--ease);
+}
+.panel-templates__tabs button:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+.panel-templates__tabs button.active {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--glow);
+}
+
+.panel-templates__save-btn {
+  width: 100%;
+  padding: 10px 14px;
+  margin-bottom: 4px;
+  border: 1px dashed var(--border-strong);
+  border-radius: 14px;
+  background: transparent;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background var(--duration) var(--ease), border-color var(--duration) var(--ease);
+}
+.panel-templates__save-btn:hover:not(:disabled) {
+  background: var(--surface-hover);
+  border-style: solid;
+}
+.panel-templates__save-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.panel-templates__empty {
+  padding: 20px 12px;
+  margin: 0;
+  text-align: center;
+  color: var(--text-muted, var(--text));
+  font-size: 12px;
+  opacity: 0.7;
+}
+
+.panel-templates__workflow-item {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+.panel-templates__workflow-item .panel-templates__item {
+  flex: 1;
+}
+
+.panel-templates__delete {
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-secondary);
+  color: var(--text-muted, var(--text));
+  font-size: 12px;
+  cursor: pointer;
+  transition: background var(--duration) var(--ease), color var(--duration) var(--ease), border-color var(--duration) var(--ease);
+}
+.panel-templates__delete:hover {
+  background: #e74c3c22;
+  border-color: #e74c3c;
+  color: #e74c3c;
+}
+
 .panel-templates__item {
   display: flex;
   align-items: center;
