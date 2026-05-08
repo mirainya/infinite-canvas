@@ -85,7 +85,7 @@ export async function verifyToken(): Promise<boolean> {
   const t = getToken();
   if (!t) return false;
   try {
-    const res = await fetch('/api/auth/verify', { headers: authHeaders() });
+    const res = await fetch('/api/auth/me', { headers: authHeaders() });
     if (!res.ok) { clearToken(); return false; }
     const data = await res.json();
     setUserInfo({ credits: data.credits, nickname: data.nickname, avatar: data.avatar });

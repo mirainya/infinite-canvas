@@ -16,8 +16,9 @@ export function PluginsPage() {
 
   useEffect(() => {
     fetch('/api/plugins', { headers: authHeaders() })
-      .then((r) => r.json())
-      .then(setPlugins)
+      .then(async (r) => (r.ok ? r.json() : []))
+      .then((data) => setPlugins(Array.isArray(data) ? data : []))
+      .catch(() => setPlugins([]))
       .finally(() => setLoading(false));
   }, []);
 

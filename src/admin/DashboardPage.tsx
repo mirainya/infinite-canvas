@@ -13,12 +13,19 @@ export function DashboardPage() {
 
   useEffect(() => {
     const h = { headers: authHeaders() };
+    const asJson = async (r: Response) => (r.ok ? r.json() : null);
+    const asArr = async (r: Response) => (r.ok ? r.json() : []);
     Promise.all([
-      fetch('/api/health').then((r) => r.json()),
-      fetch('/api/plugins', h).then((r) => r.json()),
-      fetch('/api/sources', h).then((r) => r.json()),
+      fetch('/api/health').then(asJson),
+      fetch('/api/plugins', h).then(asArr),
+      fetch('/api/sources', h).then(asArr),
     ])
-      .then(([h, p, s]) => { setHealth(h); setPlugins(p); setSources(s); })
+      .then(([hd, p, s]) => {
+        setHealth(hd);
+        setPlugins(Array.isArray(p) ? p : []);
+        setSources(Array.isArray(s) ? s : []);
+      })
+      .catch(() => { /* ignore */ })
       .finally(() => setLoading(false));
   }, []);
 
