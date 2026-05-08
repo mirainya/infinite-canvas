@@ -17,8 +17,11 @@ export type ControlDef =
 
 export type PortValues = Record<string, string | number | null>;
 
+export type ExecuteStatus = 'queued' | 'running' | 'done' | 'failed';
+
 export type SystemContext = {
   execute: (defId: string, inputs: PortValues, controls: PortValues, sourceId?: number) => Promise<PortValues>;
+  executeStream?: (defId: string, inputs: PortValues, controls: PortValues, onStatus: (status: ExecuteStatus) => void, sourceId?: number) => Promise<PortValues>;
 };
 
 export type NodeDefinition = {

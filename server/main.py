@@ -2,15 +2,19 @@ import logging
 import os
 import threading
 from contextlib import asynccontextmanager
+from pathlib import Path
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from starlette.responses import FileResponse
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 
 from auth import require_admin
 from db import init_db, close_db, get_pool
+from error_handlers import register_error_handlers
 from plugin_loader import load_plugins, reload_plugins, get_all_node_defs, PLUGINS_DIR
-from routers import sources, nodes, execute, meta_prompt, auth, admin
+from routers import sources, nodes, execute, meta_prompt, auth, admin, templates
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger(__name__)
@@ -67,15 +71,19 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Infinite Canvas", lifespan=lifespan)
+register_error_handlers(app)
 
-# ── CORS: env var > default dev fallback (db config removed — not available before startup) ──
+# ── CORS: env var > default fallback ──
 _env_origins = os.environ.get("CORS_ORIGINS", "").strip()
 _origins = (
     [o.strip() for o in _env_origins.split(",") if o.strip()]
     if _env_origins
-    else ["http://localhost:5173", "http://localhost:4173", "http://localhost:9874"]
+    else [
+        "http://localhost:5173", "http://localhost:4173", "http://localhost:9874",
+        "http://infinitecanvas.mirainya.icu", "https://infinitecanvas.mirainya.icu",
+    ]
 )
-app.add_middleware(CORSMiddleware, allow_origins=_origins, allow_methods=["*"], allow_headers=["*"])
+app.add_middleware(CORSMiddleware, allow_origins=_origins, allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 logger.info("CORS 允许来源: %s", _origins)
 
 app.include_router(auth.router)
@@ -84,6 +92,7 @@ app.include_router(sources.router)
 app.include_router(nodes.router)
 app.include_router(execute.router)
 app.include_router(meta_prompt.router)
+app.include_router(templates.router)
 
 
 @app.get("/api/health")

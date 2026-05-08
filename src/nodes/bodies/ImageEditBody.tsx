@@ -3,7 +3,7 @@ import { PORT_COLORS } from '../../constants';
 import type { NodeBodyProps } from '../registry';
 
 export default function ImageEditBody({ id, def, pv, selected, running, error, updatePV, handleRun, renderCtrl }: NodeBodyProps) {
-  const imgSrc = (pv['output-image'] as string) ?? (pv['input-image'] as string) ?? null;
+  const imgSrc = (pv['input-image'] as string) ?? null;
   const maskSrc = pv['edit_area'] as string | undefined;
   const maxPorts = Math.max(def.inputs.length, def.outputs.length);
 

@@ -6,6 +6,7 @@ export type CanvasCallbacks = {
   onChange: (id: string, data: Partial<Omit<CanvasNodeData, 'onChange' | 'ctx' | 'propagate'>>) => void;
   ctx: SystemContext;
   propagate: (nodeId: string, portValues: PortValues) => void;
+  spawnPreviewNode: (sourceNodeId: string, portValues: PortValues) => void;
 };
 
 export const CanvasCallbacksCtx = createContext<CanvasCallbacks | null>(null);

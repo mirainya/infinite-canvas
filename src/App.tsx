@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { BackgroundVariant, type Node } from 'reactflow';
+import { useAuth } from './AuthContext';
 import CanvasCore, { type CanvasCoreHandle } from './components/CanvasCore';
 import {
   ContextMenuConnected,
@@ -37,7 +38,7 @@ import { useNodeFocus } from './hooks/useNodeFocus';
 import { loadNodeDefs, subscribeNodeChanges } from './nodes';
 import { readCanvasSettings, readSavedSnapshot } from './storage';
 import type { CanvasNodeData, CanvasSettings } from './types';
-import { LoginPage, getToken, clearToken, getCredits, setCredits, authHeaders, verifyToken, getUsername, getNickname, getAvatar, setUserInfo, apiFetch } from './components/LoginPage';
+import { LoginPage, authHeaders } from './components/LoginPage';
 import 'reactflow/dist/style.css';
 
 type PanelId = 'search' | 'templates' | 'nodeLibrary' | 'stats' | 'versions' | 'projects' | 'settings' | 'inspector' | null;
@@ -54,35 +55,21 @@ const NAV_ITEMS: { id: PanelId; icon: string; label: string }[] = [
 ];
 
 function App() {
-  const [authed, setAuthed] = useState(() => !!getToken());
-  const [checking, setChecking] = useState(() => !!getToken());
-
-  useEffect(() => {
-    if (!authed) return;
-    verifyToken().then((ok) => {
-      if (!ok) setAuthed(false);
-      setChecking(false);
-    });
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => {
-    const onExpired = () => { setAuthed(false); };
-    window.addEventListener('auth-expired', onExpired);
-    return () => window.removeEventListener('auth-expired', onExpired);
-  }, []);
+  const { authed, checking, login, logout } = useAuth();
 
   if (checking) {
     return <div className="login-page"><span style={{ color: 'var(--text-secondary)' }}>验证登录中...</span></div>;
   }
 
   if (!authed) {
-    return <LoginPage onSuccess={() => setAuthed(true)} />;
+    return <LoginPage onSuccess={login} />;
   }
 
-  return <Canvas onLogout={() => { clearToken(); setAuthed(false); }} />;
+  return <Canvas onLogout={logout} />;
 }
 
 function Canvas({ onLogout }: { onLogout: () => void }) {
+  const { credits, username, nickname, avatar, refreshCredits, updateProfile } = useAuth();
   const savedSnapshot = readSavedSnapshot();
   const [status, setStatus] = useState(savedSnapshot ? '已读取上次画布' : '新画布已就绪');
   const [searchQuery, setSearchQuery] = useState('');
@@ -92,10 +79,6 @@ function Canvas({ onLogout }: { onLogout: () => void }) {
   const [imageEditorState, setImageEditorState] = useState<{ nodeId: string; imageSrc: string; maskOnly?: boolean } | null>(null);
   const [canvasSettings, setCanvasSettings] = useState<CanvasSettings>(() => readCanvasSettings());
   const [activePanel, setActivePanel] = useState<PanelId>(null);
-  const [credits, setCreditsState] = useState(getCredits);
-  const [username, setUsernameState] = useState(getUsername);
-  const [nickname, setNicknameState] = useState(getNickname);
-  const [avatar, setAvatarState] = useState(getAvatar);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -229,13 +212,6 @@ function Canvas({ onLogout }: { onLogout: () => void }) {
     coreRef.current?.fitView();
   }, []);
 
-  const refreshCredits = useCallback(async () => {
-    try {
-      const res = await fetch('/api/auth/me', { headers: authHeaders() });
-      if (res.ok) { const d = await res.json(); setCredits(d.credits); setCreditsState(d.credits); }
-    } catch { /* ignore */ }
-  }, []);
-
   const runWorkflow = useCallback(() => {
     coreRef.current?.runWorkflow();
     setTimeout(refreshCredits, 3000);
@@ -341,7 +317,7 @@ function Canvas({ onLogout }: { onLogout: () => void }) {
                   onFocusNode={focusNodeBound}
                 />
               )}
-              {activePanel === 'templates' && <TemplatePanel onAddTemplate={addTemplateNode} />}
+              {activePanel === 'templates' && <TemplatePanel onAddTemplate={addTemplateNode} getNodes={getNodes} getEdges={getEdges} setNodes={setNodes} setEdges={setEdges} />}
               {activePanel === 'nodeLibrary' && <NodeLibraryPanel />}
               {activePanel === 'stats' && (
                 <StatsPanelConnected
@@ -471,8 +447,7 @@ function Canvas({ onLogout }: { onLogout: () => void }) {
           avatar={avatar}
           onClose={() => setShowProfileModal(false)}
           onSaved={(info) => {
-            setNicknameState(info.nickname);
-            setAvatarState(info.avatar);
+            updateProfile(info);
             setShowProfileModal(false);
           }}
         />

@@ -1,3 +1,5 @@
+import asyncio
+import json
 import logging
 import time
 from decimal import Decimal
@@ -5,6 +7,7 @@ from decimal import Decimal
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 import httpx
+from sse_starlette.sse import EventSourceResponse
 from auth import get_current_user
 from db import get_pool
 from models import ExecuteRequest
@@ -158,3 +161,82 @@ async def execute_node(body: ExecuteRequest, _user: dict = Depends(get_current_u
 
     await _update_log(log_id, "success", ms, result_url=result_url, credits_used=cost)
     return result
+
+
+@router.post("/execute/stream")
+async def execute_node_stream(body: ExecuteRequest, _user: dict = Depends(get_current_user)):
+    """SSE 流式执行：推送 queued → running → done/failed 状态。"""
+    node_def = get_node_def(body.def_id)
+    if not node_def:
+        raise HTTPException(404, f"未知节点: {body.def_id}")
+    processor = get_processor(body.def_id)
+    if not processor:
+        raise HTTPException(500, f"节点 {body.def_id} 无 process 函数")
+
+    source = await _get_source(body.source_id)
+    cost = Decimal(0)
+    if source:
+        billing_type = source.get("billing_type", "per_call")
+        credit_cost = Decimal(str(source.get("credit_cost", 1)))
+        if billing_type == "per_call":
+            cost = credit_cost
+
+    user_id = int(_user.get("sub", 0)) or None
+
+    async def stream():
+        yield {"event": "status", "data": json.dumps({"status": "queued"})}
+
+        if cost > 0 and user_id:
+            try:
+                await _deduct_credits(user_id, cost, f"{body.def_id} 调用")
+            except HTTPException as e:
+                yield {"event": "status", "data": json.dumps({"status": "failed", "error": e.detail})}
+                return
+
+        action = body.controls.get("action", "")
+        prompt = body.controls.get("edit_prompt") or body.controls.get("prompt", "")
+
+        if not prompt and action and action != "erase":
+            image_url = body.inputs.get("image", "")
+            if image_url:
+                prompt = await _auto_meta_prompt(image_url, action, body.source_id)
+                if prompt:
+                    body.controls["edit_prompt"] = prompt
+
+        if isinstance(prompt, str) and len(prompt) > 500:
+            prompt = prompt[:500] + "..."
+
+        log_id = await _insert_log(body.def_id, action, prompt, user_id)
+        t0 = time.monotonic()
+
+        yield {"event": "status", "data": json.dumps({"status": "running"})}
+
+        context = {"api_source": source}
+        async with httpx.AsyncClient(timeout=httpx.Timeout(1200.0)) as client:
+            context["http_client"] = client
+            try:
+                result = await processor(body.inputs, body.controls, context)
+            except Exception as e:
+                ms = int((time.monotonic() - t0) * 1000)
+                await _update_log(log_id, "failed", ms, error=str(e), credits_used=cost)
+                if cost > 0 and user_id:
+                    pool = await get_pool()
+                    row = await pool.fetchrow(
+                        "UPDATE users SET credits = credits + $1 WHERE id = $2 RETURNING credits",
+                        cost, user_id,
+                    )
+                    await pool.execute(
+                        "INSERT INTO credit_logs (user_id, amount, balance_after, reason) VALUES ($1, $2, $3, $4)",
+                        user_id, cost, row["credits"], f"{body.def_id} 失败退还",
+                    )
+                yield {"event": "status", "data": json.dumps({"status": "failed", "error": str(e)})}
+                return
+
+        ms = int((time.monotonic() - t0) * 1000)
+        result_url = ""
+        if isinstance(result, dict):
+            result_url = result.get("image", "") or result.get("url", "")
+        await _update_log(log_id, "success", ms, result_url=result_url, credits_used=cost)
+        yield {"event": "status", "data": json.dumps({"status": "done", "result": result})}
+
+    return EventSourceResponse(stream())

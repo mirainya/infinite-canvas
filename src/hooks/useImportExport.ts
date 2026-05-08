@@ -30,7 +30,13 @@ export function useImportExport(
   setStatus: (status: string) => void,
 ) {
   const saveCanvas = useCallback(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(createSnapshot(getNodes(), getEdges())));
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(createSnapshot(getNodes(), getEdges())));
+    } catch (err) {
+      const quota = err instanceof DOMException && (err.name === 'QuotaExceededError' || err.code === 22);
+      setStatus(quota ? '存储空间不足，画布未能保存到本地' : '画布保存失败');
+      return;
+    }
     addCanvasVersion();
     setStatus('已保存画布');
   }, [addCanvasVersion, getEdges, getNodes, setStatus]);

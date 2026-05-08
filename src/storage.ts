@@ -50,8 +50,27 @@ export const readCanvasVersions = () => {
   }
 };
 
-export const writeCanvasVersions = (versions: CanvasVersion[]) => {
-  localStorage.setItem(HISTORY_KEY, JSON.stringify(versions));
+const isQuotaError = (err: unknown) =>
+  err instanceof DOMException &&
+  (err.name === 'QuotaExceededError' || err.name === 'NS_ERROR_DOM_QUOTA_REACHED' || err.code === 22);
+
+export const writeCanvasVersions = (versions: CanvasVersion[]): { saved: CanvasVersion[]; trimmed: number } => {
+  let current = versions;
+  while (current.length > 0) {
+    try {
+      localStorage.setItem(HISTORY_KEY, JSON.stringify(current));
+      return { saved: current, trimmed: versions.length - current.length };
+    } catch (err) {
+      if (!isQuotaError(err)) throw err;
+      current = current.slice(0, -1);
+    }
+  }
+  try {
+    localStorage.removeItem(HISTORY_KEY);
+  } catch {
+    // ignore
+  }
+  return { saved: [], trimmed: versions.length };
 };
 
 export const readLocalProjects = () => {

@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import App from './App';
 import { AdminLayout } from './admin/AdminLayout';
+import { AuthProvider } from './AuthContext';
 import ErrorBoundary from './components/ErrorBoundary';
 import { getToken, isAdmin } from './components/LoginPage';
 import './styles.css';
@@ -15,12 +16,14 @@ function AdminGuard() {
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
   <React.StrictMode>
     <ErrorBoundary>
-      <BrowserRouter>
-        <Routes>
-          <Route path="/admin/*" element={<AdminGuard />} />
-          <Route path="*" element={<App />} />
-        </Routes>
-      </BrowserRouter>
+      <AuthProvider>
+        <BrowserRouter>
+          <Routes>
+            <Route path="/admin/*" element={<AdminGuard />} />
+            <Route path="*" element={<App />} />
+          </Routes>
+        </BrowserRouter>
+      </AuthProvider>
     </ErrorBoundary>
   </React.StrictMode>,
 );

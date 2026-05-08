@@ -25,10 +25,18 @@ export function useCanvasVersions(
       };
       setCanvasVersions((prev) => {
         const nextVersions = [version, ...prev].slice(0, 12);
-        writeCanvasVersions(nextVersions);
-        return nextVersions;
+        const { saved, trimmed } = writeCanvasVersions(nextVersions);
+        if (trimmed > 0) {
+          setStatus(
+            saved.length === 0
+              ? '存储空间不足，未能保存历史版本'
+              : `存储空间不足，已保留 ${saved.length} 个历史版本`,
+          );
+        } else {
+          setStatus('已创建历史版本');
+        }
+        return saved;
       });
-      setStatus('已创建历史版本');
     },
     [getNodes, getEdges, setStatus],
   );
@@ -48,8 +56,8 @@ export function useCanvasVersions(
     (versionId: string) => {
       setCanvasVersions((prev) => {
         const nextVersions = prev.filter((version) => version.id !== versionId);
-        writeCanvasVersions(nextVersions);
-        return nextVersions;
+        const { saved } = writeCanvasVersions(nextVersions);
+        return saved;
       });
       setStatus('已删除历史版本');
     },

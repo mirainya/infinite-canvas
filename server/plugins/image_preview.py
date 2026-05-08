@@ -6,10 +6,11 @@ NODE_DEF = {
     "category": "工具",
     "view": "image-preview",
     "inputs": [{"id": "image", "label": "图片", "type": "IMAGE"}],
-    "outputs": [],
+    "outputs": [{"id": "image", "label": "图片", "type": "IMAGE"}],
     "controls": [],
 }
 
 
 async def process(inputs: dict, controls: dict, context: dict) -> dict:
-    return {}
+    image = inputs.get("image")
+    return {"image": image} if image else {}

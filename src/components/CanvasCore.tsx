@@ -131,9 +131,54 @@ const CanvasCore = forwardRef<CanvasCoreHandle, CanvasCoreProps>(function Canvas
       if (!res.ok) throw new Error(`执行失败: ${res.status}`);
       return res.json();
     },
+    executeStream: (defId, inputs, controls, onStatus, sourceId) => {
+      return new Promise((resolve, reject) => {
+        const body = JSON.stringify({ defId, inputs, controls, sourceId });
+        fetch('/api/execute/stream', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...authHeaders() },
+          body,
+        }).then((res) => {
+          if (!res.ok) { reject(new Error(`执行失败: ${res.status}`)); return; }
+          const reader = res.body!.getReader();
+          const decoder = new TextDecoder();
+          let buffer = '';
+          function read(): Promise<void> {
+            return reader.read().then(({ done, value }) => {
+              if (done) { reject(new Error('流意外结束')); return; }
+              buffer += decoder.decode(value, { stream: true });
+              const lines = buffer.split('\n');
+              buffer = lines.pop()!;
+              for (const line of lines) {
+                if (line.startsWith('data:')) {
+                  const raw = line.slice(5).trim();
+                  if (!raw) continue;
+                  try {
+                    const msg = JSON.parse(raw);
+                    onStatus(msg.status);
+                    if (msg.status === 'done') { resolve(msg.result); return; }
+                    if (msg.status === 'failed') { reject(new Error(msg.error || '执行失败')); return; }
+                  } catch { /* ignore parse errors */ }
+                }
+              }
+              return read();
+            });
+          }
+          read();
+        }).catch(reject);
+      });
+    },
   }), []);
 
-  const { propagate, runWorkflow } = useDataFlow(edges, setNodes, setStatus, systemContext, nodes);
+  const { propagate, runWorkflow, spawnPreviewNode } = useDataFlow(
+    edges,
+    setEdges,
+    setNodes,
+    setStatus,
+    systemContext,
+    nodes,
+    rememberHistory,
+  );
 
   const [dragOver, setDragOver] = useState(false);
 
@@ -145,12 +190,13 @@ const CanvasCore = forwardRef<CanvasCoreHandle, CanvasCoreProps>(function Canvas
     [setNodes],
   );
 
-  const cbRef = useRef<CanvasCallbacks>({ onChange: updateNodeData, ctx: systemContext, propagate });
-  useEffect(() => { cbRef.current = { onChange: updateNodeData, ctx: systemContext, propagate }; });
+  const cbRef = useRef<CanvasCallbacks>({ onChange: updateNodeData, ctx: systemContext, propagate, spawnPreviewNode });
+  useEffect(() => { cbRef.current = { onChange: updateNodeData, ctx: systemContext, propagate, spawnPreviewNode }; });
   const stableCallbacks = useMemo<CanvasCallbacks>(() => ({
     onChange: (...a) => cbRef.current.onChange(...a),
-    ctx: { execute: (...a) => cbRef.current.ctx.execute(...a) },
+    ctx: { execute: (...a) => cbRef.current.ctx.execute(...a), executeStream: (...a) => cbRef.current.ctx.executeStream!(...a) },
     propagate: (...a) => cbRef.current.propagate(...a),
+    spawnPreviewNode: (...a) => cbRef.current.spawnPreviewNode(...a),
   }), []);
 
   const { onNodeDrag, onNodeDragStop } = useSnapAlign(nodes);

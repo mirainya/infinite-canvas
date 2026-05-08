@@ -1,4 +1,5 @@
 import type { NodeDefinition } from '../types/workflow';
+import { authHeaders, getToken } from '../components/LoginPage';
 import './bodies';
 
 const nodeRegistry = new Map<string, NodeDefinition>();
@@ -30,7 +31,7 @@ function parseRawDefs(defs: Array<{
 }
 
 async function fetchDefs() {
-  const res = await fetch('/api/nodes');
+  const res = await fetch('/api/nodes', { headers: authHeaders() });
   if (!res.ok) throw new Error(`${res.status}`);
   return res.json();
 }
@@ -55,7 +56,9 @@ let _sse: EventSource | null = null;
 /** 订阅后端插件变更事件，自动刷新节点库 */
 export function subscribeNodeChanges(onReload?: () => void): () => void {
   if (_sse) _sse.close();
-  _sse = new EventSource('/api/nodes/events');
+  const token = getToken();
+  const url = token ? `/api/nodes/events?token=${encodeURIComponent(token)}` : '/api/nodes/events';
+  _sse = new EventSource(url);
   _sse.addEventListener('reload', async () => {
     await reloadNodeDefs();
     onReload?.();

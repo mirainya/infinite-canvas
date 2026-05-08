@@ -3,6 +3,10 @@ node_modules/
 
 # Build output
 dist/
+web/
+
+# Deploy artifacts
+deploy.zip
 
 # Environment & secrets
 .env

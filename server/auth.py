@@ -74,6 +74,17 @@ async def get_current_user(cred: HTTPAuthorizationCredentials = Depends(_bearer)
     return await decode_token(cred.credentials)
 
 
+async def get_current_user_or_query(
+    cred: HTTPAuthorizationCredentials | None = Depends(HTTPBearer(auto_error=False)),
+    token: str | None = None,
+) -> dict:
+    """优先从 Authorization header 取 token，fallback 到 ?token= query param（给 EventSource 用）。"""
+    raw = (cred.credentials if cred else None) or token
+    if not raw:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "未提供凭证")
+    return await decode_token(raw)
+
+
 async def require_admin(user: dict = Depends(get_current_user)) -> dict:
     if not user.get("is_admin"):
         raise HTTPException(status.HTTP_403_FORBIDDEN, "需要管理员权限")

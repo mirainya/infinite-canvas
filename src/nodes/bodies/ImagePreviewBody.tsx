@@ -6,23 +6,39 @@ import type { NodeBodyProps } from '../registry';
 
 export default function ImagePreviewBody({ def, pv, selected }: NodeBodyProps) {
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
-  const imgSrc = (pv['input-image'] as string) ?? null;
+  const imgSrc = (pv['input-image'] as string) ?? (pv['output-image'] as string) ?? null;
+  const maxPorts = Math.max(def.inputs.length, def.outputs.length);
 
   return (
     <div className={`wf wf--preview ${selected ? 'wf--selected' : ''}`}>
       <div className="wf__title">{def.name}</div>
 
-      {def.inputs.length > 0 && (
+      {maxPorts > 0 && (
         <div className="wf__ports">
-          {def.inputs.map((inp) => (
-            <div key={inp.id} className="wf__port-row">
-              <div className="wf__port-cell wf__port-cell--left">
-                <Handle type="target" position={Position.Left} id={`input-${inp.id}`} className="wf__handle" style={{ background: PORT_COLORS[inp.type] }} />
-                <span className="wf__port-label">{inp.label}</span>
+          {Array.from({ length: maxPorts }, (_, i) => {
+            const inp = def.inputs[i];
+            const out = def.outputs[i];
+            return (
+              <div key={i} className="wf__port-row">
+                <div className="wf__port-cell wf__port-cell--left">
+                  {inp && (
+                    <>
+                      <Handle type="target" position={Position.Left} id={`input-${inp.id}`} className="wf__handle" style={{ background: PORT_COLORS[inp.type] }} />
+                      <span className="wf__port-label">{inp.label}</span>
+                    </>
+                  )}
+                </div>
+                <div className="wf__port-cell wf__port-cell--right">
+                  {out && (
+                    <>
+                      <span className="wf__port-label">{out.label}</span>
+                      <Handle type="source" position={Position.Right} id={`output-${out.id}`} className="wf__handle" style={{ background: PORT_COLORS[out.type] }} />
+                    </>
+                  )}
+                </div>
               </div>
-              <div className="wf__port-cell wf__port-cell--right" />
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 

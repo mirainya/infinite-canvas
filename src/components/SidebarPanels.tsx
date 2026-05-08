@@ -1,7 +1,8 @@
-import { type Dispatch, type RefObject, type SetStateAction } from 'react';
-import type { Node } from 'reactflow';
+import { useCallback, useEffect, useState, type Dispatch, type RefObject, type SetStateAction } from 'react';
+import type { Edge, Node } from 'reactflow';
 import { COLOR_OPTIONS, NODE_TEMPLATES } from '../constants';
 import { getNodesByCategory } from '../nodes';
+import { authHeaders } from './LoginPage';
 import type { CanvasNodeData, CanvasSettings, CanvasVersion, LocalProject, NodeTemplate } from '../types';
 
 type CanvasStats = {
@@ -22,15 +23,89 @@ const parseTags = (value: string) =>
     ),
   );
 
-export function TemplatePanel({ onAddTemplate }: { onAddTemplate: (template: NodeTemplate) => void }) {
+export function TemplatePanel({ onAddTemplate, getNodes, getEdges, setNodes, setEdges }: {
+  onAddTemplate: (template: NodeTemplate) => void;
+  getNodes?: () => Node<CanvasNodeData>[];
+  getEdges?: () => Edge[];
+  setNodes?: Dispatch<SetStateAction<Node<CanvasNodeData>[]>>;
+  setEdges?: Dispatch<SetStateAction<Edge[]>>;
+}) {
+  const [tab, setTab] = useState<'node' | 'workflow'>('node');
+  const [workflows, setWorkflows] = useState<Array<{ id: number; name: string; description: string; created_at: string }>>([]);
+  const [saving, setSaving] = useState(false);
+
+  const fetchWorkflows = useCallback(async () => {
+    try {
+      const res = await fetch('/api/templates', { headers: authHeaders() });
+      if (res.ok) setWorkflows(await res.json());
+    } catch { /* ignore */ }
+  }, []);
+
+  useEffect(() => { if (tab === 'workflow') fetchWorkflows(); }, [tab, fetchWorkflows]);
+
+  const saveAsTemplate = useCallback(async () => {
+    if (!getNodes || !getEdges) return;
+    const name = prompt('模板名称：');
+    if (!name) return;
+    setSaving(true);
+    try {
+      const res = await fetch('/api/templates', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+        body: JSON.stringify({ name, nodes: getNodes(), edges: getEdges() }),
+      });
+      if (res.ok) fetchWorkflows();
+    } finally { setSaving(false); }
+  }, [getNodes, getEdges, fetchWorkflows]);
+
+  const loadTemplate = useCallback(async (id: number) => {
+    if (!setNodes || !setEdges) return;
+    try {
+      const res = await fetch(`/api/templates/${id}`, { headers: authHeaders() });
+      if (!res.ok) return;
+      const data = await res.json();
+      setNodes(data.nodes);
+      setEdges(data.edges);
+    } catch { /* ignore */ }
+  }, [setNodes, setEdges]);
+
+  const deleteTemplate = useCallback(async (id: number) => {
+    if (!confirm('确定删除此模板？')) return;
+    await fetch(`/api/templates/${id}`, { method: 'DELETE', headers: authHeaders() });
+    fetchWorkflows();
+  }, [fetchWorkflows]);
+
   return (
     <div className="panel-templates">
-      {NODE_TEMPLATES.map((template) => (
-        <button key={template.id} className="panel-templates__item" type="button" onClick={() => onAddTemplate(template)}>
-          <span className="panel-templates__dot" style={{ background: template.color }} />
-          <span>{template.name}</span>
-        </button>
-      ))}
+      <div className="panel-templates__tabs">
+        <button type="button" className={tab === 'node' ? 'active' : ''} onClick={() => setTab('node')}>节点模板</button>
+        <button type="button" className={tab === 'workflow' ? 'active' : ''} onClick={() => setTab('workflow')}>工作流模板</button>
+      </div>
+      {tab === 'node' ? (
+        NODE_TEMPLATES.map((template) => (
+          <button key={template.id} className="panel-templates__item" type="button" onClick={() => onAddTemplate(template)}>
+            <span className="panel-templates__dot" style={{ background: template.color }} />
+            <span>{template.name}</span>
+          </button>
+        ))
+      ) : (
+        <>
+          {getNodes && (
+            <button type="button" className="panel-templates__save-btn" disabled={saving} onClick={saveAsTemplate}>
+              {saving ? '保存中...' : '保存当前画布为模板'}
+            </button>
+          )}
+          {workflows.length === 0 && <p className="panel-templates__empty">暂无工作流模板</p>}
+          {workflows.map((w) => (
+            <div key={w.id} className="panel-templates__workflow-item">
+              <button type="button" className="panel-templates__item" onClick={() => loadTemplate(w.id)}>
+                <span>{w.name}</span>
+              </button>
+              <button type="button" className="panel-templates__delete" onClick={() => deleteTemplate(w.id)} title="删除">✕</button>
+            </div>
+          ))}
+        </>
+      )}
     </div>
   );
 }

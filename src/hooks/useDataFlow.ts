@@ -4,18 +4,71 @@ import { getNodeDef } from '../nodes';
 import type { CanvasNodeData } from '../types';
 import type { PortValues, SystemContext } from '../types/workflow';
 
+const PREVIEW_SOURCE_VIEWS = new Set(['image-gen', 'image-edit', 'image-compose']);
+
 export function useDataFlow(
   edges: Edge[],
+  setEdges: Dispatch<SetStateAction<Edge[]>>,
   setNodes: Dispatch<SetStateAction<Node<CanvasNodeData>[]>>,
   setStatus: (status: string) => void,
   ctx: SystemContext,
   nodes: Node<CanvasNodeData>[],
+  rememberHistory: () => void,
 ) {
   const edgesRef = useRef(edges);
   useEffect(() => { edgesRef.current = edges; });
 
   const nodesRef = useRef(nodes);
   useEffect(() => { nodesRef.current = nodes; });
+
+  const spawnPreviewNode = useCallback(
+    (sourceNodeId: string, sourcePortValues: PortValues) => {
+      const sourceNode = nodesRef.current.find((n) => n.id === sourceNodeId);
+      if (!sourceNode?.data.defId) return;
+
+      const def = getNodeDef(sourceNode.data.defId);
+      if (!def || !PREVIEW_SOURCE_VIEWS.has(def.view ?? def.defId)) return;
+
+      const imageOutput = def.outputs.find((out) => out.type === 'IMAGE');
+      if (!imageOutput) return;
+
+      const imageUrl = sourcePortValues[`output-${imageOutput.id}`];
+      if (typeof imageUrl !== 'string' || !imageUrl) return;
+
+      const previewId = crypto.randomUUID();
+      const previewCount = edgesRef.current.filter((edge) => edge.source === sourceNodeId && edge.targetHandle === 'input-image').length;
+      const previewNode: Node<CanvasNodeData> = {
+        id: previewId,
+        type: 'workflowNode',
+        position: {
+          x: sourceNode.position.x + 360,
+          y: sourceNode.position.y + previewCount * 220,
+        },
+        data: {
+          title: '图片预览',
+          prompt: '',
+          result: '',
+          defId: 'image-preview',
+          portValues: {
+            'input-image': imageUrl,
+            'output-image': imageUrl,
+          },
+        },
+      };
+      const previewEdge: Edge = {
+        id: `edge-${sourceNodeId}-${previewId}`,
+        source: sourceNodeId,
+        target: previewId,
+        sourceHandle: `output-${imageOutput.id}`,
+        targetHandle: 'input-image',
+      };
+
+      rememberHistory();
+      setNodes((currentNodes) => [...currentNodes, previewNode]);
+      setEdges((currentEdges) => [...currentEdges, previewEdge]);
+    },
+    [rememberHistory, setEdges, setNodes],
+  );
 
   const propagate = useCallback(
     (sourceNodeId: string, sourcePortValues: PortValues) => {
@@ -133,6 +186,7 @@ export function useDataFlow(
             return pv ? { ...n, data: { ...n.data, portValues: { ...pv } } } : n;
           }),
         );
+        spawnPreviewNode(nodeId, portValues);
       } catch (err) {
         setStatus(`节点 ${def.name} 执行失败: ${err instanceof Error ? err.message : '未知错误'}`);
         return;
@@ -140,7 +194,7 @@ export function useDataFlow(
     }
 
     setStatus('工作流执行完成');
-  }, [setNodes, setStatus, ctx]);
+  }, [setNodes, setStatus, ctx, spawnPreviewNode]);
 
-  return { propagate, runWorkflow };
+  return { propagate, runWorkflow, spawnPreviewNode };
 }

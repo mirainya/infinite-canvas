@@ -4,7 +4,7 @@ import { PORT_COLORS } from '../constants';
 import { getNodeDef } from '../nodes';
 import { getNodeBody } from '../nodes/registry';
 import type { CanvasNodeData } from '../types';
-import type { ControlDef } from '../types/workflow';
+import type { ControlDef, ExecuteStatus } from '../types/workflow';
 import { useCanvasCallbacks } from './CanvasCallbacks';
 import Lightbox from './Lightbox';
 import {
@@ -16,13 +16,16 @@ import {
   TextControl,
 } from './controls';
 
+const AUTO_PREVIEW_SOURCE_IDS = new Set(['image-gen', 'image-edit', 'image-compose']);
+
 function WorkflowNode({ id, data, selected }: NodeProps<CanvasNodeData>) {
   const [running, setRunning] = useState(false);
+  const [execStatus, setExecStatus] = useState<ExecuteStatus | null>(null);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
   const successTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
-  const { onChange, ctx, propagate } = useCanvasCallbacks();
+  const { onChange, ctx, propagate, spawnPreviewNode } = useCanvasCallbacks();
   const def = data.defId ? getNodeDef(data.defId) : null;
   const pv = useMemo(() => data.portValues ?? {}, [data.portValues]);
 
@@ -36,6 +39,7 @@ function WorkflowNode({ id, data, selected }: NodeProps<CanvasNodeData>) {
     if (running || !def) return;
     setRunning(true);
     setError('');
+    setExecStatus('queued');
     try {
       const inputs: Record<string, string | number | null> = {};
       for (const inp of def.inputs) inputs[inp.id] = pv[`input-${inp.id}`] ?? null;
@@ -44,10 +48,13 @@ function WorkflowNode({ id, data, selected }: NodeProps<CanvasNodeData>) {
         ctrls[c.id] = pv[c.id] ?? null;
         if (c.kind === 'imageEdit') ctrls[`${c.id}_rect`] = pv[`${c.id}_rect`] ?? null;
       }
-      const out = await ctx.execute(def.defId, inputs, ctrls);
+      const out = ctx.executeStream
+        ? await ctx.executeStream(def.defId, inputs, ctrls, setExecStatus)
+        : await ctx.execute(def.defId, inputs, ctrls);
       const next = { ...pv };
       for (const [k, v] of Object.entries(out)) next[`output-${k}`] = v;
       propagate(id, next);
+      spawnPreviewNode(id, next);
       setSuccess(true);
       clearTimeout(successTimer.current);
       successTimer.current = setTimeout(() => setSuccess(false), 1500);
@@ -55,8 +62,9 @@ function WorkflowNode({ id, data, selected }: NodeProps<CanvasNodeData>) {
       setError(e instanceof Error ? e.message : '执行失败');
     } finally {
       setRunning(false);
+      setExecStatus(null);
     }
-  }, [running, def, ctx, id, pv, propagate]);
+  }, [running, def, ctx, id, pv, propagate, spawnPreviewNode]);
 
   const CustomBody = useMemo(() => (def ? getNodeBody(def.view) : null), [def]);
 
@@ -112,11 +120,13 @@ function WorkflowNode({ id, data, selected }: NodeProps<CanvasNodeData>) {
     </div>
   ) : null;
 
+  const statusLabel = execStatus === 'queued' ? '排队中' : execStatus === 'running' ? '执行中' : null;
+
   const renderFooter = () => (
     <div className="wf__footer">
       <button type="button" className={`wf__run ${running ? 'wf__run--spin' : ''}`} disabled={running} onClick={handleRun}>
         <span className="wf__run-icon">{running ? '⟳' : '✦'}</span>
-        {running ? '运行中' : '运行'}
+        {statusLabel || '运行'}
       </button>
     </div>
   );
@@ -142,12 +152,13 @@ function WorkflowNode({ id, data, selected }: NodeProps<CanvasNodeData>) {
       {(() => {
         const imgInputs = def.inputs.filter((p) => p.type === 'IMAGE');
         const imgOutputs = def.outputs.filter((p) => p.type === 'IMAGE');
-        const hasAny = imgInputs.some((p) => pv[`input-${p.id}`] != null) || imgOutputs.some((p) => pv[`output-${p.id}`] != null);
+        const visibleImgOutputs = AUTO_PREVIEW_SOURCE_IDS.has(def.defId) ? [] : imgOutputs;
+        const hasAny = imgInputs.some((p) => pv[`input-${p.id}`] != null) || visibleImgOutputs.some((p) => pv[`output-${p.id}`] != null);
         if (!hasAny) return null;
         return (
           <div className="wf__preview">
             {imgInputs.map((p) => pv[`input-${p.id}`] != null && <img key={p.id} src={pv[`input-${p.id}`] as string} alt={p.label} draggable={false} onClick={() => setLightboxSrc(pv[`input-${p.id}`] as string)} />)}
-            {imgOutputs.map((p) => pv[`output-${p.id}`] != null && <img key={p.id} src={pv[`output-${p.id}`] as string} alt={p.label} draggable={false} onClick={() => setLightboxSrc(pv[`output-${p.id}`] as string)} />)}
+            {visibleImgOutputs.map((p) => pv[`output-${p.id}`] != null && <img key={p.id} src={pv[`output-${p.id}`] as string} alt={p.label} draggable={false} onClick={() => setLightboxSrc(pv[`output-${p.id}`] as string)} />)}
           </div>
         );
       })()}
