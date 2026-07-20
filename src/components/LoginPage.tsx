@@ -40,16 +40,16 @@ export function LoginPage({ onSuccess }: { onSuccess: () => void }) {
 
   return (
     <div className="login-page">
-      <div className="login-art">
-        <div className="login-art__circle login-art__circle--one" />
-        <div className="login-art__circle login-art__circle--two" />
-        <div className="login-art__sparkle login-art__sparkle--one" />
-        <div className="login-art__sparkle login-art__sparkle--two" />
-        <div className="login-art__sparkle login-art__sparkle--three" />
-      </div>
       <form className="login-card" onSubmit={handleSubmit}>
-        <h1 className="login-card__title">Infinite Canvas</h1>
-        <p className="login-card__subtitle">{isRegister ? '创建账号' : '登录'}</p>
+        <section className="login-intro">
+          <span className="login-intro__mark">✦</span>
+          <div>
+            <h1>Infinite Canvas</h1>
+            <p>可视化 AI 工作流</p>
+          </div>
+        </section>
+        <h2 className="login-card__title">{isRegister ? '创建账号' : '登录'}</h2>
+        <p className="login-card__subtitle">使用账号中心账户继续</p>
         <input
           className="login-card__input"
           placeholder="用户名"

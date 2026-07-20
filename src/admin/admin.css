@@ -2,33 +2,33 @@
    Theme definitions (CSS custom props)
    ══════════════════════════════════════ */
 
-/* 🌸 Sakura — default light */
+/* Sakura candy -- default light */
 .admin, .admin[data-theme="sakura"] {
-  --bg:           #faf5f8;
-  --bg-sidebar:   linear-gradient(180deg, #fff0f5 0%, #fce8f0 100%);
+  --bg:           #fff8fb;
+  --bg-sidebar:   linear-gradient(180deg, #fff0f6 0%, #f4edff 58%, #ecfbfa 100%);
   --bg-surface:   #fff;
-  --bg-surface-2: rgba(220, 120, 170, 0.04);
-  --bg-hover:     rgba(220, 120, 170, 0.06);
-  --border:       rgba(200, 140, 170, 0.15);
-  --border-light: rgba(200, 140, 170, 0.08);
-  --text:         #4a3548;
-  --text-secondary: #8a6b80;
-  --text-muted:   #b89aaa;
-  --text-heading: #3a2538;
-  --accent:       #e06898;
-  --accent-2:     #c06ad0;
-  --accent-bg:    rgba(224, 104, 152, 0.1);
-  --accent-text:  #d05888;
-  --btn-bg:       rgba(224, 104, 152, 0.06);
-  --btn-border:   rgba(224, 104, 152, 0.18);
-  --btn-hover:    rgba(224, 104, 152, 0.12);
-  --primary-grad: linear-gradient(135deg, #e879a8, #c084fc);
-  --primary-shadow: rgba(224, 104, 152, 0.25);
-  --code-bg:      rgba(192, 106, 208, 0.08);
-  --code-text:    #a855c8;
+  --bg-surface-2: rgba(232, 111, 156, 0.04);
+  --bg-hover:     rgba(155, 109, 227, 0.07);
+  --border:       rgba(164, 108, 183, 0.17);
+  --border-light: rgba(164, 108, 183, 0.09);
+  --text:         #4a354e;
+  --text-secondary: #816b84;
+  --text-muted:   #ae96ad;
+  --text-heading: #38263d;
+  --accent:       #e86f9c;
+  --accent-2:     #9b6de3;
+  --accent-bg:    rgba(232, 111, 156, 0.11);
+  --accent-text:  #cf527f;
+  --btn-bg:       rgba(155, 109, 227, 0.06);
+  --btn-border:   rgba(155, 109, 227, 0.18);
+  --btn-hover:    rgba(232, 111, 156, 0.11);
+  --primary-grad: linear-gradient(135deg, #ff8fb8, #9b7be7 52%, #64ced1);
+  --primary-shadow: rgba(155, 109, 227, 0.24);
+  --code-bg:      rgba(155, 109, 227, 0.08);
+  --code-text:    #8555c6;
   --modal-bg:     #fff;
-  --modal-shadow: rgba(100, 50, 80, 0.12);
-  --overlay:      rgba(60, 30, 50, 0.25);
+  --modal-shadow: rgba(96, 54, 108, 0.16);
+  --overlay:      rgba(65, 37, 72, 0.28);
   --ok-bg:        rgba(34, 197, 94, 0.08);
   --ok-text:      #16a34a;
   --ok-border:    rgba(34, 197, 94, 0.2);
@@ -37,8 +37,8 @@
   --err-border:   rgba(239, 68, 68, 0.2);
   --warn-bg:      rgba(234, 179, 8, 0.08);
   --warn-text:    #ca8a04;
-  --logo-icon:    '❀';
-  --switcher-bg:  rgba(224, 104, 152, 0.06);
+  --logo-icon:    '✦';
+  --switcher-bg:  rgba(232, 111, 156, 0.07);
 }
 
 /* 🌙 Moon — dark purple */
@@ -382,7 +382,7 @@
 .admin__card {
   background: var(--bg-surface);
   border: 1px solid var(--border);
-  border-radius: 16px;
+  border-radius: 8px;
   padding: 24px;
   transition: border-color 0.25s, transform 0.25s, background 0.35s;
 }
@@ -418,7 +418,7 @@
 .admin__table-wrap {
   background: var(--bg-surface);
   border: 1px solid var(--border);
-  border-radius: 14px;
+  border-radius: 8px;
   overflow: hidden;
   transition: background 0.35s, border-color 0.35s;
 }
@@ -734,7 +734,7 @@
   padding: 10px 16px;
   margin: 0 8px;
   background: var(--switcher-bg);
-  border-radius: 10px;
+  border-radius: 6px;
 }
 
 .admin__theme-btn {
@@ -742,12 +742,64 @@
   padding: 6px 0;
   border: 2px solid transparent;
   background: none;
-  border-radius: 8px;
+  border-radius: 6px;
   cursor: pointer;
-  font-size: 15px;
   line-height: 1;
   transition: all 0.2s;
   opacity: 0.5;
+}
+
+.admin__theme-swatch {
+  display: block;
+  width: 16px;
+  height: 16px;
+  margin: auto;
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px var(--border);
+}
+
+@media (max-width: 720px) {
+  .admin__sidebar { width: 68px; }
+  .admin__logo {
+    justify-content: center;
+    padding: 18px 0;
+    font-size: 0;
+  }
+  .admin__logo::before { margin-right: 0; }
+  .admin__nav-item {
+    justify-content: center;
+    padding: 11px 0;
+    font-size: 0;
+  }
+  .admin__nav-icon {
+    width: auto;
+    margin: 0;
+    font-size: 16px;
+  }
+  .admin__theme-switcher {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    margin: 0 6px;
+    padding: 6px;
+  }
+  .admin__theme-btn { padding: 5px 0; }
+  .admin__theme-swatch { width: 12px; height: 12px; }
+  .admin__back {
+    padding: 14px 0;
+    text-align: center;
+    font-size: 0;
+  }
+  .admin__back::before { content: '←'; font-size: 18px; }
+  .admin__content {
+    min-width: 0;
+    padding: 20px 14px;
+  }
+  .admin__title { font-size: 22px; }
+  .admin__cards { grid-template-columns: 1fr; gap: 10px; }
+  .admin__card { padding: 18px; }
+  .admin__table-wrap { overflow-x: auto; }
+  .admin__table { min-width: 680px; }
 }
 
 .admin__theme-btn:hover {
@@ -768,6 +820,19 @@
   flex-direction: column;
   gap: 16px;
   max-width: 560px;
+}
+
+.admin__config-group {
+  margin-bottom: 24px;
+}
+
+.admin__config-group-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-heading);
+  margin: 0 0 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-light);
 }
 
 .admin__config-item {
@@ -791,11 +856,44 @@
   font-size: 14px;
   font-family: 'SF Mono', 'Fira Code', monospace;
   transition: border-color 0.2s;
+  width: 100%;
 }
 
 .admin__config-input:focus {
   outline: none;
   border-color: var(--accent);
+}
+
+.admin__config-input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.admin__config-input-wrap .admin__config-input {
+  padding-right: 36px;
+}
+
+.admin__config-eye {
+  position: absolute;
+  right: 8px;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 16px;
+  padding: 2px 4px;
+  line-height: 1;
+}
+
+.admin__config-badge {
+  margin-left: 8px;
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--ok-bg);
+  color: var(--ok-text);
+  font-weight: 500;
 }
 
 .admin__msg {
@@ -805,4 +903,68 @@
   background: var(--ok-bg);
   color: var(--ok-text);
   font-size: 13px;
+}
+
+.admin__overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--overlay);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.admin__dialog {
+  background: var(--modal-bg, var(--bg-surface));
+  border-radius: 12px;
+  padding: 24px;
+  min-width: 320px;
+  max-width: 400px;
+  box-shadow: 0 8px 32px var(--modal-shadow, rgba(0,0,0,0.15));
+}
+
+/* ── Toggle Switch ── */
+.admin__toggle {
+  position: relative;
+  display: inline-flex;
+  width: 36px;
+  height: 20px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.admin__toggle input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+  position: absolute;
+}
+
+.admin__toggle-slider {
+  position: absolute;
+  inset: 0;
+  background: var(--border);
+  border-radius: 20px;
+  transition: background 0.2s;
+}
+
+.admin__toggle-slider::before {
+  content: '';
+  position: absolute;
+  left: 2px;
+  top: 2px;
+  width: 16px;
+  height: 16px;
+  background: #fff;
+  border-radius: 50%;
+  transition: transform 0.2s;
+}
+
+.admin__toggle input:checked + .admin__toggle-slider {
+  background: var(--accent);
+}
+
+.admin__toggle input:checked + .admin__toggle-slider::before {
+  transform: translateX(16px);
 }

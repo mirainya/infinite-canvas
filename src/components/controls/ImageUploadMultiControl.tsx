@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState, type DragEvent } from 'react';
-import { authHeaders } from '../LoginPage';
+import { apiFetch } from '../../api';
 
 type Props = {
   id: string;
@@ -21,9 +21,9 @@ function parseUrls(value: string | null): ImageItem[] {
 }
 
 async function uploadToXfs(dataUrl: string): Promise<string> {
-  const res = await fetch('/api/upload', {
+  const res = await apiFetch('/api/upload', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ image: dataUrl }),
   });
   if (!res.ok) throw new Error(`上传失败: ${res.status}`);

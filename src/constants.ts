@@ -13,6 +13,7 @@ export const COLOR_OPTIONS = ['#6366f1', '#38bdf8', '#22c55e', '#f59e0b', '#ef44
 
 export const PORT_COLORS: Record<string, string> = {
   STRING: '#a78bfa', IMAGE: '#34d399', NUMBER: '#60a5fa', MASK: '#fbbf24', ANY: '#9ca3af',
+  STRING_LIST: '#c084fc', IMAGE_LIST: '#6ee7b7', TEXT: '#a78bfa',
 };
 
 export const NODE_TEMPLATES: NodeTemplate[] = [];

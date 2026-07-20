@@ -12,7 +12,6 @@
   bottom: 0;
   width: var(--panel-w);
   background: var(--surface);
-
   border-right: 1px solid var(--border);
   z-index: 10;
   display: flex;
@@ -89,7 +88,7 @@
 
 .panel-search__input:focus {
   border-color: var(--primary-light);
-  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.1);
+  box-shadow: var(--glow);
 }
 
 .panel-search__icon {
@@ -253,10 +252,10 @@
   align-items: center;
   gap: 10px;
   width: 100%;
-  padding: 10px 14px;
+  padding: 9px 12px;
   border: 1px solid var(--border);
-  border-radius: 14px;
-  background: var(--bg-secondary);
+  border-radius: 6px;
+  background: var(--surface);
   color: var(--text);
   font-size: 13px;
   font-weight: 500;
@@ -268,7 +267,7 @@
   background: var(--surface-hover);
   border-color: var(--border-strong);
   box-shadow: var(--glow);
-  transform: translateY(-1px);
+  transform: none;
 }
 
 .panel-templates__dot {
@@ -743,6 +742,22 @@
   font-family: inherit;
 }
 
+.panel-projects__tab {
+  padding: 4px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+  font-family: inherit;
+}
+.panel-projects__tab--active {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary);
+}
+
 .panel-projects__actions button:hover {
   background: var(--surface-hover);
   color: var(--primary);
@@ -754,3 +769,39 @@
   box-shadow: var(--glow);
 }
 
+/* -- History Panel -- */
+.panel-history { display: flex; flex-direction: column; gap: 8px; }
+.panel-history__loading,
+.panel-history__empty { color: var(--text-tertiary); font-size: 13px; text-align: center; padding: 24px 0; }
+.panel-history__refresh { align-self: flex-end; padding: 4px 10px; border: 1px solid var(--border); border-radius: 8px; background: transparent; color: var(--text-secondary); font-size: 11px; cursor: pointer; font-family: inherit; }
+.panel-history__refresh:hover { background: var(--surface-hover); color: var(--primary); }
+.panel-history__list { display: flex; flex-direction: column; gap: 8px; }
+.panel-history__item { padding: 10px 12px; border-radius: 12px; background: var(--bg-secondary); border: 1px solid var(--border); }
+.panel-history__item--failed { border-color: var(--error, #e53935); }
+.panel-history__item--pending { opacity: 0.7; }
+.panel-history__meta { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+.panel-history__defid { font-size: 11px; font-weight: 600; color: var(--primary); }
+.panel-history__time { font-size: 10px; color: var(--text-tertiary); }
+.panel-history__prompt { font-size: 12px; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-bottom: 6px; }
+.panel-history__result { display: flex; align-items: center; gap: 8px; }
+.panel-history__thumb { width: 48px; height: 48px; object-fit: cover; border-radius: 8px; border: 1px solid var(--border); }
+.panel-history__actions { display: flex; gap: 4px; }
+.panel-history__actions button,
+.panel-history__actions a { padding: 3px 8px; border: 1px solid var(--border); border-radius: 6px; background: transparent; color: var(--text-secondary); font-size: 11px; cursor: pointer; text-decoration: none; font-family: inherit; }
+.panel-history__actions button:hover,
+.panel-history__actions a:hover { background: var(--surface-hover); color: var(--primary); }
+.panel-history__error { font-size: 11px; color: var(--error, #e53935); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.panel-history__pending { font-size: 11px; color: var(--text-tertiary); display: flex; align-items: center; gap: 6px; }
+.panel-history__cancel {
+  padding: 1px 8px;
+  border: 1px solid rgba(248, 113, 113, 0.4);
+  border-radius: 3px;
+  background: transparent;
+  color: #f87171;
+  font-size: 10px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.panel-history__cancel:hover { background: rgba(248, 113, 113, 0.1); }
+.panel-history__duration { font-size: 10px; color: var(--text-tertiary); float: right; }

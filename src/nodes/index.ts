@@ -1,5 +1,5 @@
 import type { NodeDefinition } from '../types/workflow';
-import { authHeaders, getToken } from '../components/LoginPage';
+import { apiFetch } from '../api';
 import './bodies';
 
 const nodeRegistry = new Map<string, NodeDefinition>();
@@ -31,7 +31,7 @@ function parseRawDefs(defs: Array<{
 }
 
 async function fetchDefs() {
-  const res = await fetch('/api/nodes', { headers: authHeaders() });
+  const res = await apiFetch('/api/nodes');
   if (!res.ok) throw new Error(`${res.status}`);
   return res.json();
 }
@@ -51,19 +51,64 @@ export async function reloadNodeDefs(): Promise<void> {
   _loaded = true;
 }
 
-let _sse: EventSource | null = null;
+let _sseAbort: AbortController | null = null;
+
+async function waitForReconnect(signal: AbortSignal): Promise<void> {
+  await new Promise<void>((resolve) => {
+    const onAbort = () => {
+      window.clearTimeout(timer);
+      resolve();
+    };
+    const timer = window.setTimeout(() => {
+      signal.removeEventListener('abort', onAbort);
+      resolve();
+    }, 2000);
+    signal.addEventListener('abort', onAbort, { once: true });
+  });
+}
+
+async function watchNodeChanges(signal: AbortSignal, onReload?: () => void) {
+  while (!signal.aborted) {
+    try {
+      const res = await apiFetch('/api/nodes/events', {
+        headers: { Accept: 'text/event-stream' },
+        signal,
+      });
+      if (!res.ok || !res.body) throw new Error(`插件事件连接失败: ${res.status}`);
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      while (!signal.aborted) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const events = buffer.split(/\r?\n\r?\n/);
+        buffer = events.pop() ?? '';
+        for (const event of events) {
+          if (!event.split(/\r?\n/).some((line) => line.trim() === 'event: reload')) continue;
+          await reloadNodeDefs();
+          onReload?.();
+        }
+      }
+    } catch (error) {
+      if (signal.aborted) return;
+      console.warn('插件事件连接中断，准备重连', error);
+    }
+    await waitForReconnect(signal);
+  }
+}
 
 /** 订阅后端插件变更事件，自动刷新节点库 */
 export function subscribeNodeChanges(onReload?: () => void): () => void {
-  if (_sse) _sse.close();
-  const token = getToken();
-  const url = token ? `/api/nodes/events?token=${encodeURIComponent(token)}` : '/api/nodes/events';
-  _sse = new EventSource(url);
-  _sse.addEventListener('reload', async () => {
-    await reloadNodeDefs();
-    onReload?.();
-  });
-  return () => { _sse?.close(); _sse = null; };
+  _sseAbort?.abort();
+  const controller = new AbortController();
+  _sseAbort = controller;
+  void watchNodeChanges(controller.signal, onReload);
+  return () => {
+    controller.abort();
+    if (_sseAbort === controller) _sseAbort = null;
+  };
 }
 
 export function getNodeDef(defId: string): NodeDefinition | undefined {

@@ -42,6 +42,7 @@ function Topbar({
       <div className="topbar__left">
         <span className="topbar__logo">✦</span>
         <span className="topbar__title">Infinite Canvas</span>
+        <span className="topbar__title-mobile">Canvas</span>
       </div>
       <div className="topbar__center">
         <input

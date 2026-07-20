@@ -16,6 +16,8 @@ deploy.zip
 .temp/
 temp/
 *.exe
+*.log
+ic-frontend-update-*.zip
 
 # Python
 __pycache__/

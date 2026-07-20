@@ -1,4 +1,7 @@
-const TOKEN_KEY = 'infinite-canvas.token';
+// 鉴权令牌管理: IC 已归入账号中心(account-center), token 即账号中心 access_token。
+// access 短时效(默认2h), 配合 refresh_token 续期; 嵌入 OPC 时由父窗口经 postMessage 注入。
+const TOKEN_KEY = 'infinite-canvas.token';            // access_token
+const REFRESH_KEY = 'infinite-canvas.refresh';        // refresh_token
 const ADMIN_KEY = 'infinite-canvas.is_admin';
 const CREDITS_KEY = 'infinite-canvas.credits';
 const NICKNAME_KEY = 'infinite-canvas.nickname';
@@ -26,6 +29,10 @@ let _remember = !!localStorage.getItem(TOKEN_KEY);
 
 export function getToken(): string | null {
   return _get(TOKEN_KEY);
+}
+
+export function getRefreshToken(): string | null {
+  return _get(REFRESH_KEY);
 }
 
 export function isAdmin(): boolean {
@@ -59,21 +66,34 @@ export function setUserInfo(info: { nickname?: string; avatar?: string; username
   if (info.credits != null) _set(CREDITS_KEY, String(info.credits), _remember);
 }
 
-export function saveAuth(data: {
-  token: string; is_admin: boolean; credits: number;
-  username: string; nickname: string; avatar: string;
-}, remember: boolean) {
+// 账号中心登录/注册响应: { access_token, refresh_token, user, is_admin, credits }
+export interface AuthData {
+  access_token: string;
+  refresh_token: string;
+  user: { id: number; username: string; nickname?: string; avatar?: string };
+  is_admin: boolean;
+  credits: number;
+}
+
+export function saveAuth(data: AuthData, remember: boolean) {
   _remember = remember;
-  _set(TOKEN_KEY, data.token, remember);
+  _set(TOKEN_KEY, data.access_token, remember);
+  _set(REFRESH_KEY, data.refresh_token || '', remember);
   _set(ADMIN_KEY, data.is_admin ? '1' : '', remember);
   _set(CREDITS_KEY, String(data.credits ?? 0), remember);
-  _set(USERNAME_KEY, data.username, remember);
-  _set(NICKNAME_KEY, data.nickname || '', remember);
-  _set(AVATAR_KEY, data.avatar || '', remember);
+  _set(USERNAME_KEY, data.user?.username || '', remember);
+  _set(NICKNAME_KEY, data.user?.nickname || '', remember);
+  _set(AVATAR_KEY, data.user?.avatar || '', remember);
+}
+
+// 嵌入模式下父窗口(OPC)经 postMessage 注入令牌时调用。
+export function setTokens(accessToken: string, refreshToken: string) {
+  _set(TOKEN_KEY, accessToken, _remember);
+  if (refreshToken) _set(REFRESH_KEY, refreshToken, _remember);
 }
 
 export function clearToken() {
-  [TOKEN_KEY, ADMIN_KEY, CREDITS_KEY, NICKNAME_KEY, AVATAR_KEY, USERNAME_KEY].forEach(_clear);
+  [TOKEN_KEY, REFRESH_KEY, ADMIN_KEY, CREDITS_KEY, NICKNAME_KEY, AVATAR_KEY, USERNAME_KEY].forEach(_clear);
 }
 
 export function authHeaders(): Record<string, string> {
@@ -81,14 +101,38 @@ export function authHeaders(): Record<string, string> {
   return t ? { Authorization: `Bearer ${t}` } : {};
 }
 
+// 用 refresh_token 换新的 access_token; 成功返回 true。
+export async function refreshAccessToken(): Promise<boolean> {
+  const rt = getRefreshToken();
+  if (!rt) return false;
+  try {
+    const res = await fetch('/api/auth/refresh', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refresh_token: rt }),
+    });
+    if (!res.ok) return false;
+    const data = await res.json();
+    if (!data.access_token) return false;
+    _set(TOKEN_KEY, data.access_token, _remember);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export async function verifyToken(): Promise<boolean> {
   const t = getToken();
   if (!t) return false;
   try {
-    const res = await fetch('/api/auth/me', { headers: authHeaders() });
+    let res = await fetch('/api/auth/me', { headers: authHeaders() });
+    if (res.status === 401 && await refreshAccessToken()) {
+      res = await fetch('/api/auth/me', { headers: authHeaders() });
+    }
     if (!res.ok) { clearToken(); return false; }
     const data = await res.json();
-    setUserInfo({ credits: data.credits, nickname: data.nickname, avatar: data.avatar });
+    setUserInfo({ credits: data.credits, nickname: data.nickname, avatar: data.avatar, username: data.username });
+    if (data.is_admin != null) _set(ADMIN_KEY, data.is_admin ? '1' : '', _remember);
     return true;
   } catch {
     return false;

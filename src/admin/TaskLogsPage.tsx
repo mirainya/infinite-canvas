@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { authHeaders } from '../components/LoginPage';
+import { apiFetch } from '../api';
 
 type TaskLog = {
   id: number;
@@ -25,7 +25,7 @@ export function TaskLogsPage() {
 
   const fetchLogs = useCallback(async () => {
     try {
-      const res = await fetch('/api/task-logs?limit=100', { headers: authHeaders() });
+      const res = await apiFetch('/api/task-logs?limit=100');
       if (res.ok) setLogs(await res.json());
     } finally {
       setLoading(false);

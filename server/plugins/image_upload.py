@@ -18,10 +18,15 @@ NODE_DEF = {
 
 
 async def process(inputs: dict, controls: dict, context: dict) -> dict:
-    data_uri = controls.get("upload") or ""
-    if not data_uri:
+    value = controls.get("upload") or ""
+    if not value:
         raise RuntimeError("请先上传图片")
 
+    # 前端已上传拿到 URL，直接透传
+    if value.startswith("http"):
+        return {"image": value}
+
+    # 兼容旧逻辑：data URI
     client = context["http_client"]
-    url = await upload_data_uri(client, data_uri, "infinite-canvas/upload")
+    url = await upload_data_uri(client, value, "infinite-canvas/upload")
     return {"image": url}

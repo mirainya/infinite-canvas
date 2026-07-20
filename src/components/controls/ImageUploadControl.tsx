@@ -1,4 +1,5 @@
-import { useCallback, useRef, type DragEvent } from 'react';
+import { useCallback, useRef, useState, type DragEvent } from 'react';
+import { apiFetch } from '../../api';
 
 type ImageUploadControlProps = {
   id: string;
@@ -9,20 +10,38 @@ type ImageUploadControlProps = {
 
 export default function ImageUploadControl({ id, label, value, onChange }: ImageUploadControlProps) {
   const fileRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
 
-  const loadImage = useCallback((file: File) => {
+  const uploadImage = useCallback(async (file: File) => {
     if (!file.type.startsWith('image/')) return;
-    const reader = new FileReader();
-    reader.onload = () => onChange(reader.result as string);
-    reader.readAsDataURL(file);
+    setUploading(true);
+    try {
+      const reader = new FileReader();
+      const dataUri = await new Promise<string>((resolve) => {
+        reader.onload = () => resolve(reader.result as string);
+        reader.readAsDataURL(file);
+      });
+      const res = await apiFetch('/api/upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image: dataUri }),
+      });
+      if (!res.ok) throw new Error(`上传失败: ${res.status}`);
+      const { url } = await res.json();
+      onChange(url);
+    } catch (e) {
+      console.error('图片上传失败', e);
+    } finally {
+      setUploading(false);
+    }
   }, [onChange]);
 
   const onDrop = useCallback((e: DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
     const file = e.dataTransfer.files[0];
-    if (file) loadImage(file);
-  }, [loadImage]);
+    if (file) uploadImage(file);
+  }, [uploadImage]);
 
   return (
     <div className="control image-upload-control">
@@ -37,9 +56,9 @@ export default function ImageUploadControl({ id, label, value, onChange }: Image
           className="image-upload-control__drop nodrag"
           onDrop={onDrop}
           onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
-          onClick={() => fileRef.current?.click()}
+          onClick={() => !uploading && fileRef.current?.click()}
         >
-          <span>拖拽或点击上传</span>
+          <span>{uploading ? '上传中...' : '拖拽或点击上传'}</span>
           <input
             ref={fileRef}
             id={id}
@@ -48,7 +67,7 @@ export default function ImageUploadControl({ id, label, value, onChange }: Image
             hidden
             onChange={(e) => {
               const file = e.target.files?.[0];
-              if (file) loadImage(file);
+              if (file) uploadImage(file);
               e.target.value = '';
             }}
           />

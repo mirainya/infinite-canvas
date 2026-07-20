@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState, type Dispatch, type RefObject, type SetStateAction } from 'react';
 import type { Edge, Node } from 'reactflow';
+import { apiFetch } from '../api';
 import { COLOR_OPTIONS, NODE_TEMPLATES } from '../constants';
 import { getNodesByCategory } from '../nodes';
-import { authHeaders } from './LoginPage';
 import type { CanvasNodeData, CanvasSettings, CanvasVersion, LocalProject, NodeTemplate } from '../types';
 
 type CanvasStats = {
@@ -36,12 +36,10 @@ export function TemplatePanel({ onAddTemplate, getNodes, getEdges, setNodes, set
 
   const fetchWorkflows = useCallback(async () => {
     try {
-      const res = await fetch('/api/templates', { headers: authHeaders() });
+      const res = await apiFetch('/api/templates');
       if (res.ok) setWorkflows(await res.json());
     } catch { /* ignore */ }
   }, []);
-
-  useEffect(() => { if (tab === 'workflow') fetchWorkflows(); }, [tab, fetchWorkflows]);
 
   const saveAsTemplate = useCallback(async () => {
     if (!getNodes || !getEdges) return;
@@ -49,9 +47,9 @@ export function TemplatePanel({ onAddTemplate, getNodes, getEdges, setNodes, set
     if (!name) return;
     setSaving(true);
     try {
-      const res = await fetch('/api/templates', {
+      const res = await apiFetch('/api/templates', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, nodes: getNodes(), edges: getEdges() }),
       });
       if (res.ok) fetchWorkflows();
@@ -61,7 +59,7 @@ export function TemplatePanel({ onAddTemplate, getNodes, getEdges, setNodes, set
   const loadTemplate = useCallback(async (id: number) => {
     if (!setNodes || !setEdges) return;
     try {
-      const res = await fetch(`/api/templates/${id}`, { headers: authHeaders() });
+      const res = await apiFetch(`/api/templates/${id}`);
       if (!res.ok) return;
       const data = await res.json();
       setNodes(data.nodes);
@@ -71,7 +69,7 @@ export function TemplatePanel({ onAddTemplate, getNodes, getEdges, setNodes, set
 
   const deleteTemplate = useCallback(async (id: number) => {
     if (!confirm('确定删除此模板？')) return;
-    await fetch(`/api/templates/${id}`, { method: 'DELETE', headers: authHeaders() });
+    await apiFetch(`/api/templates/${id}`, { method: 'DELETE' });
     fetchWorkflows();
   }, [fetchWorkflows]);
 
@@ -79,7 +77,11 @@ export function TemplatePanel({ onAddTemplate, getNodes, getEdges, setNodes, set
     <div className="panel-templates">
       <div className="panel-templates__tabs">
         <button type="button" className={tab === 'node' ? 'active' : ''} onClick={() => setTab('node')}>节点模板</button>
-        <button type="button" className={tab === 'workflow' ? 'active' : ''} onClick={() => setTab('workflow')}>工作流模板</button>
+        <button
+          type="button"
+          className={tab === 'workflow' ? 'active' : ''}
+          onClick={() => { setTab('workflow'); void fetchWorkflows(); }}
+        >工作流模板</button>
       </div>
       {tab === 'node' ? (
         NODE_TEMPLATES.map((template) => (
@@ -110,7 +112,7 @@ export function TemplatePanel({ onAddTemplate, getNodes, getEdges, setNodes, set
   );
 }
 
-export function NodeLibraryPanel() {
+export function NodeLibraryPanel({ onAddNode }: { onAddNode: (defId: string) => void }) {
   const grouped = getNodesByCategory();
   return (
     <div className="panel-templates">
@@ -123,6 +125,7 @@ export function NodeLibraryPanel() {
               className="panel-templates__item"
               type="button"
               draggable
+              onClick={() => onAddNode(def.defId)}
               onDragStart={(e) => {
                 e.dataTransfer.setData('application/x-def-id', def.defId);
                 e.dataTransfer.effectAllowed = 'move';
@@ -246,6 +249,12 @@ export function ProjectsPanel({
   onSave,
   onOpen,
   onDelete,
+  cloudList,
+  syncing,
+  onCloudSave,
+  onCloudLoad,
+  onCloudDelete,
+  onCloudRefresh,
 }: {
   projects: LocalProject[];
   currentProjectId: string | null;
@@ -254,38 +263,85 @@ export function ProjectsPanel({
   onSave: () => void;
   onOpen: (project: LocalProject) => void;
   onDelete: (projectId: string) => void;
+  cloudList?: { id: string; name: string; updated_at: string }[];
+  syncing?: boolean;
+  onCloudSave?: () => void;
+  onCloudLoad?: (id: string) => void;
+  onCloudDelete?: (id: string) => void;
+  onCloudRefresh?: () => void;
 }) {
+  const [tab, setTab] = useState<'local' | 'cloud'>('local');
+
+  useEffect(() => { if (tab === 'cloud' && onCloudRefresh) onCloudRefresh(); }, [tab, onCloudRefresh]);
+
   return (
     <div className="panel-projects">
-      <div className="panel-projects__save">
-        <input
-          className="panel-projects__name-input"
-          value={projectName}
-          placeholder="项目名称"
-          onChange={(e) => onProjectNameChange(e.target.value)}
-        />
-        <button type="button" className="panel-projects__save-btn" onClick={onSave}>保存</button>
+      <div className="panel-projects__tabs" style={{ display: 'flex', gap: 4, marginBottom: 8 }}>
+        <button type="button" className={`panel-projects__tab ${tab === 'local' ? 'panel-projects__tab--active' : ''}`} onClick={() => setTab('local')}>本地</button>
+        <button type="button" className={`panel-projects__tab ${tab === 'cloud' ? 'panel-projects__tab--active' : ''}`} onClick={() => setTab('cloud')}>云端</button>
       </div>
-      {projects.length === 0 ? (
-        <p className="panel-projects__empty">暂无本地项目</p>
-      ) : (
-        <div className="panel-projects__list">
-          {projects.map((project) => (
-            <div
-              key={project.id}
-              className={`panel-projects__item ${project.id === currentProjectId ? 'panel-projects__item--active' : ''}`}
-            >
-              <div className="panel-projects__item-info">
-                <strong>{project.name}</strong>
-                <span>{new Date(project.updatedAt).toLocaleString()}</span>
-              </div>
-              <div className="panel-projects__actions">
-                <button type="button" onClick={() => onOpen(project)}>打开</button>
-                <button type="button" className="panel-projects__item-del" onClick={() => onDelete(project.id)}>删除</button>
-              </div>
+
+      {tab === 'local' && (
+        <>
+          <div className="panel-projects__save">
+            <input
+              className="panel-projects__name-input"
+              value={projectName}
+              placeholder="项目名称"
+              onChange={(e) => onProjectNameChange(e.target.value)}
+            />
+            <button type="button" className="panel-projects__save-btn" onClick={onSave}>保存</button>
+          </div>
+          {projects.length === 0 ? (
+            <p className="panel-projects__empty">暂无本地项目</p>
+          ) : (
+            <div className="panel-projects__list">
+              {projects.map((project) => (
+                <div
+                  key={project.id}
+                  className={`panel-projects__item ${project.id === currentProjectId ? 'panel-projects__item--active' : ''}`}
+                >
+                  <div className="panel-projects__item-info">
+                    <strong>{project.name}</strong>
+                    <span>{new Date(project.updatedAt).toLocaleString()}</span>
+                  </div>
+                  <div className="panel-projects__actions">
+                    <button type="button" onClick={() => onOpen(project)}>打开</button>
+                    <button type="button" className="panel-projects__item-del" onClick={() => onDelete(project.id)}>删除</button>
+                  </div>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
+          )}
+        </>
+      )}
+
+      {tab === 'cloud' && (
+        <>
+          <div className="panel-projects__save">
+            <button type="button" className="panel-projects__save-btn" onClick={onCloudSave} disabled={syncing}>
+              {syncing ? '同步中...' : '保存到云端'}
+            </button>
+          </div>
+          {!cloudList?.length ? (
+            <p className="panel-projects__empty">暂无云端项目</p>
+          ) : (
+            <div className="panel-projects__list">
+              {cloudList.map((c) => (
+                <div key={c.id} className={`panel-projects__item ${c.id === currentProjectId ? 'panel-projects__item--active' : ''}`}>
+                  <div className="panel-projects__item-info">
+                    <strong>{c.name}</strong>
+                    <span>{new Date(c.updated_at).toLocaleString()}</span>
+                  </div>
+                  <div className="panel-projects__actions">
+                    <button type="button" onClick={() => onCloudLoad?.(c.id)}>打开</button>
+                    <button type="button" className="panel-projects__item-del" onClick={() => onCloudDelete?.(c.id)}>删除</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
       )}
     </div>
   );
@@ -471,4 +527,3 @@ export function InspectorPanel({
     </div>
   );
 }
-

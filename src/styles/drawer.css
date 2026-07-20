@@ -89,7 +89,7 @@
 .detail-drawer input:focus,
 .detail-drawer textarea:focus {
   border-color: var(--primary-light);
-  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.1);
+  box-shadow: var(--glow);
 }
 
 .detail-drawer textarea {
@@ -262,6 +262,8 @@
 }
 
 .react-flow__minimap {
+  width: 160px !important;
+  height: 110px !important;
   border-radius: var(--radius) !important;
   overflow: hidden;
   box-shadow: var(--shadow) !important;
@@ -285,4 +287,3 @@
   fill: var(--canvas-dots);
   stroke: var(--canvas-dots);
 }
-

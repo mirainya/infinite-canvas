@@ -5,6 +5,22 @@ import type { CanvasNodeData } from '../types';
 import type { PortValues, SystemContext } from '../types/workflow';
 
 const PREVIEW_SOURCE_VIEWS = new Set(['image-gen', 'image-edit', 'image-compose']);
+const TEXT_SPAWN_DEFS = new Set(['llm-chat', 'prompt-enhance']);
+
+export function hasConnectedOutputNode(
+  edges: Edge[],
+  nodes: Node<CanvasNodeData>[],
+  sourceId: string,
+  sourceHandle: string,
+  targetDefId: string,
+) {
+  const targetIds = new Set(
+    edges
+      .filter((edge) => edge.source === sourceId && edge.sourceHandle === sourceHandle)
+      .map((edge) => edge.target),
+  );
+  return nodes.some((node) => targetIds.has(node.id) && node.data.defId === targetDefId);
+}
 
 export function useDataFlow(
   edges: Edge[],
@@ -27,45 +43,89 @@ export function useDataFlow(
       if (!sourceNode?.data.defId) return;
 
       const def = getNodeDef(sourceNode.data.defId);
-      if (!def || !PREVIEW_SOURCE_VIEWS.has(def.view ?? def.defId)) return;
+      if (!def) return;
 
-      const imageOutput = def.outputs.find((out) => out.type === 'IMAGE');
-      if (!imageOutput) return;
+      // Image preview spawn
+      if (PREVIEW_SOURCE_VIEWS.has(def.view ?? def.defId)) {
+        const imageOutput = def.outputs.find((out) => out.type === 'IMAGE');
+        if (imageOutput) {
+          const sourceHandle = `output-${imageOutput.id}`;
+          if (hasConnectedOutputNode(
+            edgesRef.current, nodesRef.current, sourceNodeId, sourceHandle, 'image-preview',
+          )) return;
+          const imageUrl = sourcePortValues[`output-${imageOutput.id}`];
+          if (typeof imageUrl === 'string' && imageUrl) {
+            const previewId = crypto.randomUUID();
+            const previewCount = edgesRef.current.filter((edge) => edge.source === sourceNodeId && edge.targetHandle === 'input-image').length;
+            const previewNode: Node<CanvasNodeData> = {
+              id: previewId,
+              type: 'workflowNode',
+              position: {
+                x: sourceNode.position.x + 360,
+                y: sourceNode.position.y + previewCount * 480,
+              },
+              data: {
+                title: '图片预览',
+                prompt: '',
+                result: '',
+                defId: 'image-preview',
+                portValues: { 'input-image': imageUrl, 'output-image': imageUrl },
+              },
+            };
+            const previewEdge: Edge = {
+              id: `edge-${sourceNodeId}-${previewId}`,
+              source: sourceNodeId,
+              target: previewId,
+              sourceHandle,
+              targetHandle: 'input-image',
+            };
+            rememberHistory();
+            setNodes((cur) => [...cur, previewNode]);
+            setEdges((cur) => [...cur, previewEdge]);
+          }
+        }
+        return;
+      }
 
-      const imageUrl = sourcePortValues[`output-${imageOutput.id}`];
-      if (typeof imageUrl !== 'string' || !imageUrl) return;
+      // Text box spawn for LLM nodes
+      if (TEXT_SPAWN_DEFS.has(def.defId)) {
+        const textOutput = def.outputs.find((out) => out.type === 'STRING' || out.type === 'TEXT');
+        if (!textOutput) return;
+        const sourceHandle = `output-${textOutput.id}`;
+        if (hasConnectedOutputNode(
+          edgesRef.current, nodesRef.current, sourceNodeId, sourceHandle, 'text-box',
+        )) return;
+        const text = sourcePortValues[`output-${textOutput.id}`];
+        if (typeof text !== 'string' || !text) return;
 
-      const previewId = crypto.randomUUID();
-      const previewCount = edgesRef.current.filter((edge) => edge.source === sourceNodeId && edge.targetHandle === 'input-image').length;
-      const previewNode: Node<CanvasNodeData> = {
-        id: previewId,
-        type: 'workflowNode',
-        position: {
-          x: sourceNode.position.x + 360,
-          y: sourceNode.position.y + previewCount * 220,
-        },
-        data: {
-          title: '图片预览',
-          prompt: '',
-          result: '',
-          defId: 'image-preview',
-          portValues: {
-            'input-image': imageUrl,
-            'output-image': imageUrl,
+        const textBoxId = crypto.randomUUID();
+        const existingCount = edgesRef.current.filter((edge) => edge.source === sourceNodeId && edge.sourceHandle === `output-${textOutput.id}`).length;
+        const textBoxNode: Node<CanvasNodeData> = {
+          id: textBoxId,
+          type: 'workflowNode',
+          position: {
+            x: sourceNode.position.x + 360,
+            y: sourceNode.position.y + existingCount * 220,
           },
-        },
-      };
-      const previewEdge: Edge = {
-        id: `edge-${sourceNodeId}-${previewId}`,
-        source: sourceNodeId,
-        target: previewId,
-        sourceHandle: `output-${imageOutput.id}`,
-        targetHandle: 'input-image',
-      };
-
-      rememberHistory();
-      setNodes((currentNodes) => [...currentNodes, previewNode]);
-      setEdges((currentEdges) => [...currentEdges, previewEdge]);
+          data: {
+            title: '文本框',
+            prompt: '',
+            result: '',
+            defId: 'text-box',
+            portValues: { 'input-text': text, 'output-text': text, content: text },
+          },
+        };
+        const textEdge: Edge = {
+          id: `edge-${sourceNodeId}-${textBoxId}`,
+          source: sourceNodeId,
+          target: textBoxId,
+          sourceHandle,
+          targetHandle: 'input-text',
+        };
+        rememberHistory();
+        setNodes((cur) => [...cur, textBoxNode]);
+        setEdges((cur) => [...cur, textEdge]);
+      }
     },
     [rememberHistory, setEdges, setNodes],
   );

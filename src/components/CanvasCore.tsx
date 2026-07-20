@@ -28,7 +28,7 @@ import { useCanvasHistory } from '../hooks/useCanvasHistory';
 import { useDataFlow } from '../hooks/useDataFlow';
 import { useFlowEvents } from '../hooks/useFlowEvents';
 import { useSnapAlign } from '../hooks/useSnapAlign';
-import { authHeaders } from './LoginPage';
+import { apiFetch } from '../api';
 import type { CanvasNodeData, CanvasSettings } from '../types';
 import type { PortValues, SystemContext } from '../types/workflow';
 
@@ -83,6 +83,23 @@ const CanvasCore = forwardRef<CanvasCoreHandle, CanvasCoreProps>(function Canvas
 
   const [nodes, setNodes, onNodesChangeBase] = useNodesState(initNodes);
   const [edges, setEdges, onEdgesChangeBase] = useEdgesState(initEdges);
+  const [compactViewport, setCompactViewport] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia('(max-width: 720px)').matches,
+  );
+  const stableNodeTypes = useMemo(() => nodeTypes, []);
+
+  useEffect(() => {
+    const media = window.matchMedia('(max-width: 720px)');
+    const update = () => setCompactViewport(media.matches);
+    media.addEventListener('change', update);
+    return () => media.removeEventListener('change', update);
+  }, []);
+
+  const initialFitViewOptions = useMemo(() => ({
+    padding: 0.18,
+    minZoom: compactViewport ? 0.72 : 0.35,
+    maxZoom: 1,
+  }), [compactViewport]);
 
   const nodesRef = useRef(nodes);
   const edgesRef = useRef(edges);
@@ -122,21 +139,21 @@ const CanvasCore = forwardRef<CanvasCoreHandle, CanvasCoreProps>(function Canvas
   useEffect(() => { rememberRef.current = rememberHistory; });
 
   const systemContext = useMemo<SystemContext>(() => ({
-    execute: async (defId: string, inputs: PortValues, controls: PortValues, sourceId?: number) => {
-      const res = await fetch('/api/execute', {
+    execute: async (defId: string, inputs: PortValues, controls: PortValues) => {
+      const res = await apiFetch('/api/execute', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...authHeaders() },
-        body: JSON.stringify({ defId, inputs, controls, sourceId }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ defId, inputs, controls }),
       });
       if (!res.ok) throw new Error(`执行失败: ${res.status}`);
       return res.json();
     },
-    executeStream: (defId, inputs, controls, onStatus, sourceId) => {
+    executeStream: (defId, inputs, controls, onStatus) => {
       return new Promise((resolve, reject) => {
-        const body = JSON.stringify({ defId, inputs, controls, sourceId });
-        fetch('/api/execute/stream', {
+        const body = JSON.stringify({ defId, inputs, controls });
+        apiFetch('/api/execute/stream', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...authHeaders() },
+          headers: { 'Content-Type': 'application/json' },
           body,
         }).then((res) => {
           if (!res.ok) { reject(new Error(`执行失败: ${res.status}`)); return; }
@@ -206,10 +223,24 @@ const CanvasCore = forwardRef<CanvasCoreHandle, CanvasCoreProps>(function Canvas
 
   const reactFlowRef = useRef<ReactFlowInstance | null>(null);
 
+  const handleInit = useCallback((instance: ReactFlowInstance) => {
+    reactFlowRef.current = instance;
+    if (!compactViewport) return;
+    const firstNode = nodesRef.current.find((node) => !node.parentNode) ?? nodesRef.current[0];
+    if (!firstNode) return;
+    window.requestAnimationFrame(() => {
+      void instance.setCenter(
+        firstNode.position.x + 140,
+        firstNode.position.y + 180,
+        { zoom: 0.75 },
+      );
+    });
+  }, [compactViewport]);
+
   const fitView = useCallback(() => {
-    reactFlowRef.current?.fitView({ padding: 0.2, duration: 300 });
+    reactFlowRef.current?.fitView({ padding: 0.2, duration: 300, minZoom: compactViewport ? 0.55 : 0.2 });
     setStatus('视图已适配画布');
-  }, [setStatus]);
+  }, [compactViewport, setStatus]);
 
   useImperativeHandle(ref, () => ({
     getNodes: () => nodesRef.current,
@@ -244,10 +275,10 @@ const CanvasCore = forwardRef<CanvasCoreHandle, CanvasCoreProps>(function Canvas
       onNodeContextMenu={onNodeContextMenu}
       onNodeDrag={onNodeDrag}
       onNodeDragStop={onNodeDragStop}
-      nodeTypes={nodeTypes}
+      nodeTypes={stableNodeTypes}
       snapToGrid={settings.snapToGrid}
       snapGrid={[settings.gridSize, settings.gridSize]}
-      onInit={(instance) => { reactFlowRef.current = instance; }}
+      onInit={handleInit}
       onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setDragOver(true); }}
       onDragLeave={() => setDragOver(false)}
       onDrop={(e) => {
@@ -258,7 +289,8 @@ const CanvasCore = forwardRef<CanvasCoreHandle, CanvasCoreProps>(function Canvas
         const position = reactFlowRef.current.screenToFlowPosition({ x: e.clientX, y: e.clientY });
         onAddWorkflowNodeAt(defId, position);
       }}
-      fitView
+      fitView={!compactViewport}
+      fitViewOptions={initialFitViewOptions}
     >
       {settings.showGrid && (
         <Background
@@ -267,8 +299,8 @@ const CanvasCore = forwardRef<CanvasCoreHandle, CanvasCoreProps>(function Canvas
           variant={backgroundVariant}
         />
       )}
-      <Controls />
-      {settings.showMiniMap && <MiniMap />}
+      <Controls showInteractive={!compactViewport} />
+      {settings.showMiniMap && !compactViewport && <MiniMap pannable zoomable />}
     </ReactFlow>
     </CanvasCallbacksCtx.Provider>
   );

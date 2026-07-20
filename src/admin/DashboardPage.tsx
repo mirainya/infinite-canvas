@@ -1,29 +1,24 @@
 import { useEffect, useState } from 'react';
-import { authHeaders } from '../components/LoginPage';
+import { apiFetch } from '../api';
 
 type HealthData = { status: string; name: string };
 type PluginSummary = { def_id: string; name: string };
-type SourceSummary = { id: number; name: string };
 
 export function DashboardPage() {
   const [health, setHealth] = useState<HealthData | null>(null);
   const [plugins, setPlugins] = useState<PluginSummary[]>([]);
-  const [sources, setSources] = useState<SourceSummary[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const h = { headers: authHeaders() };
     const asJson = async (r: Response) => (r.ok ? r.json() : null);
     const asArr = async (r: Response) => (r.ok ? r.json() : []);
     Promise.all([
       fetch('/api/health').then(asJson),
-      fetch('/api/plugins', h).then(asArr),
-      fetch('/api/sources', h).then(asArr),
+      apiFetch('/api/plugins').then(asArr),
     ])
-      .then(([hd, p, s]) => {
+      .then(([hd, p]) => {
         setHealth(hd);
         setPlugins(Array.isArray(p) ? p : []);
-        setSources(Array.isArray(s) ? s : []);
       })
       .catch(() => { /* ignore */ })
       .finally(() => setLoading(false));
@@ -42,10 +37,6 @@ export function DashboardPage() {
         <div className="admin__card">
           <div className="admin__card-value">{plugins.length}</div>
           <div className="admin__card-label">已加载插件</div>
-        </div>
-        <div className="admin__card">
-          <div className="admin__card-value">{sources.length}</div>
-          <div className="admin__card-label">API 来源</div>
         </div>
       </div>
     </div>

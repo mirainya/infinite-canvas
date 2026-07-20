@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { authHeaders } from '../components/LoginPage';
+import { apiFetch } from '../api';
 
 type PluginInfo = {
   def_id: string;
@@ -15,7 +15,7 @@ export function PluginsPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch('/api/plugins', { headers: authHeaders() })
+    apiFetch('/api/plugins')
       .then(async (r) => (r.ok ? r.json() : []))
       .then((data) => setPlugins(Array.isArray(data) ? data : []))
       .catch(() => setPlugins([]))

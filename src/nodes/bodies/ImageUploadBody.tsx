@@ -5,7 +5,7 @@ import Lightbox from '../../components/Lightbox';
 import { useCanvasCallbacks } from '../../components/CanvasCallbacks';
 import type { NodeBodyProps } from '../registry';
 
-export default function ImageUploadBody({ id, def, pv, selected, updatePV }: NodeBodyProps) {
+export default function ImageUploadBody({ id, def, pv, selected, updatePV, updatePVs }: NodeBodyProps) {
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
@@ -52,10 +52,9 @@ export default function ImageUploadBody({ id, def, pv, selected, updatePV }: Nod
   }, [loadImage]);
 
   const clearImage = useCallback(() => {
-    updatePV('upload', null);
-    updatePV('output-image', null);
+    updatePVs({ upload: null, 'output-image': null });
     setError('');
-  }, [updatePV]);
+  }, [updatePVs]);
 
   return (
     <div className={`wf wf--upload ${selected ? 'wf--selected' : ''} ${uploading ? 'wf--running' : ''} ${error ? 'wf--error-state' : ''}`}>

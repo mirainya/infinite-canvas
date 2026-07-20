@@ -6,7 +6,8 @@ from fastapi import APIRouter, Depends, HTTPException
 import httpx
 
 from auth import get_current_user
-from db import get_pool
+from db import get_config
+from prism import get_prism_source
 
 logger = logging.getLogger(__name__)
 
@@ -55,21 +56,11 @@ PROMPT: <你生成的英文提示词>""",
 class MetaPromptRequest(BaseModel):
     image_url: str
     action: str = "replace"
-    source_id: int | None = None
 
 
 class MetaPromptResponse(BaseModel):
     analysis: str
     prompt: str
-
-
-async def _get_source(source_id: int | None) -> dict | None:
-    pool = await get_pool()
-    if source_id is not None:
-        row = await pool.fetchrow("SELECT * FROM api_sources WHERE id = $1", source_id)
-    else:
-        row = await pool.fetchrow("SELECT * FROM api_sources WHERE is_default = TRUE LIMIT 1")
-    return dict(row) if row else None
 
 
 def _extract_content(resp_body: dict) -> str:
@@ -97,13 +88,13 @@ def _extract_prompt(text: str) -> str:
 
 @router.post("/meta-prompt", response_model=MetaPromptResponse)
 async def generate_meta_prompt(body: MetaPromptRequest, _user: dict = Depends(get_current_user)):
-    source = await _get_source(body.source_id)
+    source = await get_prism_source()
     if not source:
-        raise HTTPException(400, "未配置 API 来源")
+        raise HTTPException(400, "未配置棱镜连接，请在系统配置中设置")
 
     base_url = source["base_url"].rstrip("/")
     token = source["token"]
-    chat_model = source.get("chat_model") or "gemini-3-pro-preview"
+    chat_model = (await get_config("prism_chat_model")) or "gemini-3-pro-preview"
 
     action_template = ACTION_TEMPLATES.get(body.action)
     if not action_template:

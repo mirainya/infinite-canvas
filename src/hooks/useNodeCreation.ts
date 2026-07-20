@@ -26,6 +26,13 @@ const createGroupNode = (position: { x: number; y: number }) => ({
   data: { title: '分组区域', prompt: '', result: '', color: COLOR_OPTIONS[1], tags: [], note: '' },
 });
 
+export function getAutoNodePosition(index: number) {
+  return {
+    x: 120 + (index % 3) * 380,
+    y: 120 + Math.floor(index / 3) * 620,
+  };
+}
+
 export function useNodeCreation(
   setNodes: Dispatch<SetStateAction<Node<CanvasNodeData>[]>>,
   rememberHistory: () => void,
@@ -37,10 +44,7 @@ export function useNodeCreation(
     const template = NODE_TEMPLATES[0];
     setNodes((currentNodes) => [
       ...currentNodes,
-      createNodeFromTemplate(template, {
-        x: 160 + currentNodes.length * 40,
-        y: 180 + currentNodes.length * 30,
-      }),
+      createNodeFromTemplate(template, getAutoNodePosition(currentNodes.length)),
     ]);
     setStatus('已添加节点');
   }, [rememberHistory, setNodes, setStatus]);
@@ -60,10 +64,7 @@ export function useNodeCreation(
       rememberHistory();
       setNodes((currentNodes) => [
         ...currentNodes,
-        createNodeFromTemplate(template, {
-          x: 160 + currentNodes.length * 40,
-          y: 180 + currentNodes.length * 30,
-        }),
+        createNodeFromTemplate(template, getAutoNodePosition(currentNodes.length)),
       ]);
       setStatus(`已添加模板：${template.name}`);
     },
@@ -114,7 +115,7 @@ export function useNodeCreation(
           {
             id: crypto.randomUUID(),
             type: 'workflowNode',
-            position: { x: 160 + currentNodes.length * 40, y: 180 + currentNodes.length * 30 },
+            position: getAutoNodePosition(currentNodes.length),
             data: { title: def.name, prompt: '', result: '', defId, portValues: initPortValues },
           },
         ];

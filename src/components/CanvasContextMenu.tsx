@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import type { Node } from 'reactflow';
 import { getNodesByCategory } from '../nodes';
 import type { CanvasNodeData, ContextMenuState } from '../types';
@@ -25,12 +26,26 @@ function CanvasContextMenu({
   onAddGroup,
   onAddWorkflowNode,
 }: CanvasContextMenuProps) {
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!menu) return;
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (event.target instanceof Element && menuRef.current?.contains(event.target)) return;
+      onClose();
+    };
+
+    window.addEventListener('pointerdown', handlePointerDown);
+    return () => window.removeEventListener('pointerdown', handlePointerDown);
+  }, [menu, onClose]);
+
   if (!menu) return null;
 
   const grouped = getNodesByCategory();
 
   return (
-    <div className="context-menu" style={{ left: menu.x, top: menu.y }}>
+    <div ref={menuRef} className="context-menu" style={{ left: menu.x, top: menu.y }}>
       {node ? (
         <>
           <div className="context-menu__title">{node.data.title}</div>

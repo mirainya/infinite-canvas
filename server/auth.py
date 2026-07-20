@@ -1,89 +1,36 @@
-import secrets
-from datetime import datetime, timedelta, timezone
+"""鉴权依赖: 校验账号中心(account-center)签发的 RS256 access token。
 
-import bcrypt
-import jwt
+IC 已退役本地密码/HS256 自签体系, 全量改用账号中心离线验签。
+本模块只保留两个 FastAPI 依赖:
+- get_current_user: header Bearer 验签
+- require_admin: 在前者基础上校验 IC 管理端白名单
+
+验签得到的身份统一为 dict, 兼容历史: {"sub": <用户id字符串>, "username": ..., "is_admin": <IC白名单命中>}。
+"""
+
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
-from db import get_config, set_config
-
-ALGORITHM = "HS256"
-EXPIRE_HOURS = 72
+import account_center as ac
 
 _bearer = HTTPBearer()
-_secret_key: str | None = None
 
 
-async def _get_secret_key() -> str:
-    global _secret_key
-    if _secret_key:
-        return _secret_key
-    val = await get_config("jwt_secret")
-    if not val:
-        val = secrets.token_hex(32)
-        await set_config("jwt_secret", val)
-    _secret_key = val
-    return _secret_key
+def _to_identity(claims: dict) -> dict:
+    """把账号中心 claims 归一为下游期望的身份 dict。
 
-
-def hash_password(password: str) -> str:
-    return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
-
-
-def verify_password(password: str, hashed: str) -> bool:
-    return bcrypt.checkpw(password.encode(), hashed.encode())
-
-
-async def create_token(user_id: int, username: str, is_admin: bool = False) -> str:
-    secret = await _get_secret_key()
-    payload = {
-        "sub": str(user_id),
+    is_admin 取 IC 自己的白名单(账号中心的 is_admin 是它那侧的, 与 IC 管理端无关)。
+    """
+    username = claims.get("username", "")
+    return {
+        "sub": claims.get("sub", ""),
         "username": username,
-        "is_admin": is_admin,
-        "exp": datetime.now(timezone.utc) + timedelta(hours=EXPIRE_HOURS),
+        "is_admin": ac.is_ic_admin(username),
     }
-    return jwt.encode(payload, secret, algorithm=ALGORITHM)
-
-
-async def decode_token(token: str) -> dict:
-    secret = await _get_secret_key()
-    try:
-        return jwt.decode(token, secret, algorithms=[ALGORITHM])
-    except jwt.ExpiredSignatureError:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "token 已过期")
-    except jwt.InvalidTokenError:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "无效 token")
-
-
-async def decode_token_allow_expired(token: str, max_grace_days: int = 7) -> dict:
-    secret = await _get_secret_key()
-    try:
-        payload = jwt.decode(token, secret, algorithms=[ALGORITHM], options={"verify_exp": False})
-    except jwt.InvalidTokenError:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "无效 token")
-    exp = payload.get("exp")
-    if exp:
-        expired_at = datetime.fromtimestamp(exp, tz=timezone.utc)
-        if datetime.now(timezone.utc) - expired_at > timedelta(days=max_grace_days):
-            raise HTTPException(status.HTTP_401_UNAUTHORIZED, "token 已过期超过宽限期")
-    return payload
 
 
 async def get_current_user(cred: HTTPAuthorizationCredentials = Depends(_bearer)) -> dict:
-    return await decode_token(cred.credentials)
-
-
-async def get_current_user_or_query(
-    cred: HTTPAuthorizationCredentials | None = Depends(HTTPBearer(auto_error=False)),
-    token: str | None = None,
-) -> dict:
-    """优先从 Authorization header 取 token，fallback 到 ?token= query param（给 EventSource 用）。"""
-    raw = (cred.credentials if cred else None) or token
-    if not raw:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "未提供凭证")
-    return await decode_token(raw)
-
+    return _to_identity(ac.verify_token(cred.credentials))
 
 async def require_admin(user: dict = Depends(get_current_user)) -> dict:
     if not user.get("is_admin"):

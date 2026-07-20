@@ -55,7 +55,11 @@ async def submit_and_poll(
 
         if status in ("success", "completed"):
             result = task_data.get("result", {})
-            image_url = result.get("url") or result.get("image_url")
+            image_url = (
+                result.get("url")
+                or result.get("image_url")
+                or (result.get("urls") or [None])[0]
+            )
             if not image_url:
                 raise RuntimeError(f"{label}成功但未返回图片 URL")
             logger.info("%s完成: %s", label, image_url)

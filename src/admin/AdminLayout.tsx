@@ -1,30 +1,26 @@
 import { useState } from 'react';
 import { DashboardPage } from './DashboardPage';
-import { ApiSourcesPage } from './ApiSourcesPage';
 import { ConfigPage } from './ConfigPage';
-import { CreditLogsPage } from './CreditLogsPage';
+import { ModelsPage } from './ModelsPage';
 import { PluginsPage } from './PluginsPage';
 import { TaskLogsPage } from './TaskLogsPage';
-import { UsersPage } from './UsersPage';
 import './admin.css';
 
-type Tab = 'dashboard' | 'sources' | 'plugins' | 'logs' | 'credits' | 'users' | 'config';
+type Tab = 'dashboard' | 'models' | 'plugins' | 'logs' | 'config';
 
 const TABS: { id: Tab; label: string; icon: string }[] = [
   { id: 'dashboard', label: '仪表盘', icon: '◈' },
-  { id: 'sources', label: 'API 来源', icon: '⚡' },
+  { id: 'models', label: '模型管理', icon: '◆' },
   { id: 'plugins', label: '插件', icon: '⬡' },
   { id: 'logs', label: '任务日志', icon: '☰' },
-  { id: 'credits', label: '积分日志', icon: '◇' },
-  { id: 'users', label: '用户管理', icon: '♟' },
   { id: 'config', label: '系统配置', icon: '⚙' },
 ];
 
 const THEMES = [
-  { id: 'sakura', icon: '🌸', tip: '樱花' },
-  { id: 'moon',   icon: '🌙', tip: '月夜' },
-  { id: 'ocean',  icon: '🌊', tip: '海洋' },
-  { id: 'matcha', icon: '🍵', tip: '抹茶' },
+  { id: 'sakura', color: '#e96f9f', tip: '樱花' },
+  { id: 'moon',   color: '#24182f', tip: '月夜' },
+  { id: 'ocean',  color: '#55c7d2', tip: '海洋' },
+  { id: 'matcha', color: '#79b84c', tip: '抹茶' },
 ];
 
 function getInitialTheme() {
@@ -65,8 +61,9 @@ export function AdminLayout() {
               className={`admin__theme-btn ${theme === t.id ? 'admin__theme-btn--active' : ''}`}
               onClick={() => switchTheme(t.id)}
               title={t.tip}
+              aria-label={t.tip}
             >
-              {t.icon}
+              <span className="admin__theme-swatch" style={{ background: t.color }} />
             </button>
           ))}
         </div>
@@ -74,11 +71,9 @@ export function AdminLayout() {
       </aside>
       <main className="admin__content">
         {tab === 'dashboard' && <DashboardPage />}
-        {tab === 'sources' && <ApiSourcesPage />}
+        {tab === 'models' && <ModelsPage />}
         {tab === 'plugins' && <PluginsPage />}
         {tab === 'logs' && <TaskLogsPage />}
-        {tab === 'credits' && <CreditLogsPage />}
-        {tab === 'users' && <UsersPage />}
         {tab === 'config' && <ConfigPage />}
       </main>
     </div>

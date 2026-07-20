@@ -1,5 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
-import { clearToken, getAvatar, getCredits, getNickname, getToken, getUsername, setCredits, setUserInfo, verifyToken, authHeaders } from './auth';
+import { clearToken, getAvatar, getCredits, getNickname, getToken, getUsername, setCredits, setUserInfo, verifyToken } from './auth';
+import { apiFetch } from './api';
+import { preloadModels } from './components/controls/ModelControl';
 
 type AuthState = {
   authed: boolean;
@@ -32,6 +34,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!authed) return;
     verifyToken().then((ok) => {
       if (!ok) setAuthed(false);
+      else {
+        setCreditsState(getCredits());
+        setUsernameState(getUsername());
+        setNicknameState(getNickname());
+        setAvatarState(getAvatar());
+        preloadModels();
+      }
       setChecking(false);
     });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -48,6 +57,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUsernameState(getUsername());
     setNicknameState(getNickname());
     setAvatarState(getAvatar());
+    preloadModels();
   }, []);
 
   const logout = useCallback(() => {
@@ -57,7 +67,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const refreshCredits = useCallback(async () => {
     try {
-      const res = await fetch('/api/auth/me', { headers: authHeaders() });
+      const res = await apiFetch('/api/auth/me');
       if (res.ok) {
         const d = await res.json();
         setCredits(d.credits);
@@ -65,6 +75,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     } catch { /* ignore */ }
   }, []);
+
+  useEffect(() => {
+    const handleCreditsChanged = () => { void refreshCredits(); };
+    window.addEventListener('credits-changed', handleCreditsChanged);
+    return () => window.removeEventListener('credits-changed', handleCreditsChanged);
+  }, [refreshCredits]);
 
   const updateProfile = useCallback((info: { nickname?: string; avatar?: string }) => {
     setUserInfo(info);

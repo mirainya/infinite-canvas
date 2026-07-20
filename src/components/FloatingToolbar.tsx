@@ -18,13 +18,14 @@ interface FloatingToolbarProps {
   onDuplicate: () => void;
   onDelete: () => void;
   onClear: () => void;
+  onAutoLayout: () => void;
 }
 
 function FloatingToolbar({
   onRun, onFit, onUndo, onRedo,
   onSave, onLoad, onExportJson, onImportJson,
   onExportProject, onImportProject, onSaveToProjects,
-  onGroup, onUngroup, onDuplicate, onDelete, onClear,
+  onGroup, onUngroup, onDuplicate, onDelete, onClear, onAutoLayout,
 }: FloatingToolbarProps) {
   const [showMore, setShowMore] = useState(false);
 
@@ -32,15 +33,15 @@ function FloatingToolbar({
 
   return (
     <div className="floating-toolbar">
-      <button type="button" className="floating-toolbar__btn floating-toolbar__btn--run" onClick={onRun}>✦ 运行</button>
+      <button type="button" className="floating-toolbar__btn floating-toolbar__btn--run" onClick={onRun} title="运行工作流">✦ 运行</button>
       <div className="floating-toolbar__divider" />
-      <button type="button" className="floating-toolbar__btn" onClick={onFit}>⊞</button>
-      <button type="button" className="floating-toolbar__btn" onClick={onUndo}>↩</button>
-      <button type="button" className="floating-toolbar__btn" onClick={onRedo}>↪</button>
+      <button type="button" className="floating-toolbar__btn" onClick={onFit} title="适配画布" aria-label="适配画布">⊞</button>
+      <button type="button" className="floating-toolbar__btn" onClick={onUndo} title="撤销" aria-label="撤销">↩</button>
+      <button type="button" className="floating-toolbar__btn" onClick={onRedo} title="重做" aria-label="重做">↪</button>
       <div className="floating-toolbar__divider" />
       {isAdmin() && <button type="button" className="floating-toolbar__btn" onClick={() => window.open('/admin', '_blank')} title="后台管理">⚙</button>}
       <div className="floating-toolbar__more">
-        <button type="button" className="floating-toolbar__btn" onClick={() => setShowMore((v) => !v)}>⋯</button>
+        <button type="button" className="floating-toolbar__btn" onClick={() => setShowMore((v) => !v)} title="更多操作" aria-label="更多操作">⋯</button>
         {showMore && (
           <div className="floating-toolbar__dropdown">
             <button type="button" onClick={wrap(onSave)}>保存画布</button>
@@ -50,6 +51,7 @@ function FloatingToolbar({
             <button type="button" onClick={wrap(onExportProject)}>导出项目包</button>
             <button type="button" onClick={wrap(onImportProject)}>导入项目包</button>
             <button type="button" onClick={wrap(onSaveToProjects)}>保存到项目列表</button>
+            <button type="button" data-action="auto-layout" onClick={wrap(onAutoLayout)}>自动排列节点</button>
             <button type="button" onClick={wrap(onGroup)}>加入分组</button>
             <button type="button" onClick={wrap(onUngroup)}>移出分组</button>
             <button type="button" onClick={wrap(onDuplicate)}>复制所选</button>

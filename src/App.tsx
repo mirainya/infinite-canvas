@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { BackgroundVariant, type Node } from 'reactflow';
 import { useAuth } from './AuthContext';
 import CanvasCore, { type CanvasCoreHandle } from './components/CanvasCore';
@@ -10,7 +10,6 @@ import {
   StatsPanelConnected,
 } from './components/ConnectedPanels';
 import FloatingToolbar from './components/FloatingToolbar';
-import ImageEditor from './components/ImageEditor';
 import ProfileModal from './components/ProfileModal';
 import PasswordModal from './components/PasswordModal';
 import {
@@ -20,6 +19,7 @@ import {
   TemplatePanel,
   VersionsPanel,
 } from './components/SidebarPanels';
+import { HistoryPanel } from './components/HistoryPanel';
 import ShortcutHelp from './components/ShortcutHelp';
 import Topbar from './components/Topbar';
 import {
@@ -32,21 +32,28 @@ import { useGroupActions } from './hooks/useGroupActions';
 import { useImportExport } from './hooks/useImportExport';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import { useLocalProjects } from './hooks/useLocalProjects';
+import { useCloudSync } from './hooks/useCloudSync';
 import { useNodeClipboard } from './hooks/useNodeClipboard';
 import { useNodeCreation } from './hooks/useNodeCreation';
 import { useNodeFocus } from './hooks/useNodeFocus';
 import { loadNodeDefs, subscribeNodeChanges } from './nodes';
-import { readCanvasSettings, readSavedSnapshot } from './storage';
+import { createSnapshot, readCanvasSettings, readSavedSnapshot } from './storage';
 import type { CanvasNodeData, CanvasSettings } from './types';
-import { LoginPage, authHeaders } from './components/LoginPage';
+import { LoginPage, verifyToken } from './components/LoginPage';
+import { isEmbedded } from './embed';
+import { signalReady, signalAuthExpired, listenForOpcAuth } from './embedAuth';
+import { apiFetch } from './api';
 import 'reactflow/dist/style.css';
 
-type PanelId = 'search' | 'templates' | 'nodeLibrary' | 'stats' | 'versions' | 'projects' | 'settings' | 'inspector' | null;
+const ImageEditor = lazy(() => import('./components/ImageEditor'));
+
+type PanelId = 'search' | 'templates' | 'nodeLibrary' | 'stats' | 'versions' | 'projects' | 'history' | 'settings' | 'inspector' | null;
 
 const NAV_ITEMS: { id: PanelId; icon: string; label: string }[] = [
   { id: 'search', icon: '⌕', label: '搜索' },
   { id: 'nodeLibrary', icon: '⬡', label: '节点库' },
   { id: 'templates', icon: '✦', label: '模板' },
+  { id: 'history', icon: '⏱', label: '历史' },
   { id: 'stats', icon: '◈', label: '统计' },
   { id: 'versions', icon: '⟲', label: '版本' },
   { id: 'projects', icon: '▤', label: '项目' },
@@ -57,11 +64,26 @@ const NAV_ITEMS: { id: PanelId; icon: string; label: string }[] = [
 function App() {
   const { authed, checking, login, logout } = useAuth();
 
+  // 嵌入态(被 OPC iframe 嵌入)且未登录: 走 SSO, 等父窗口推送账号中心令牌, 不弹登录页。
+  useEffect(() => {
+    if (!isEmbedded || authed || checking) return;
+    signalAuthExpired();  // 告知父窗口当前无有效令牌(兼作重推请求)
+    signalReady();        // 告知父窗口 IC 已就绪, 可推送
+    const stop = listenForOpcAuth(async () => {
+      const ok = await verifyToken();
+      if (ok) login();
+    });
+    return stop;
+  }, [authed, checking, login]);
+
   if (checking) {
     return <div className="login-page"><span style={{ color: 'var(--text-secondary)' }}>验证登录中...</span></div>;
   }
 
   if (!authed) {
+    if (isEmbedded) {
+      return <div className="login-page"><span style={{ color: 'var(--text-secondary)' }}>正在连接账号…</span></div>;
+    }
     return <LoginPage onSuccess={login} />;
   }
 
@@ -125,6 +147,24 @@ function Canvas({ onLogout }: { onLogout: () => void }) {
     setNodes, setEdges, setCanvasVersions, setCanvasSettings,
     rememberHistory, setStatus,
   );
+
+  const getSnapshot = useCallback(() => createSnapshot(getNodes(), getEdges()), [getNodes, getEdges]);
+
+  const { cloudList, syncing, fetchCloudList, saveToCloud, loadFromCloud, deleteFromCloud } = useCloudSync(
+    currentProjectId, projectName, getSnapshot, canvasVersions, canvasSettings,
+  );
+
+  const handleCloudLoad = useCallback(async (canvasId: string) => {
+    try {
+      const data = await loadFromCloud(canvasId);
+      rememberHistory();
+      setNodes(data.snapshot.nodes);
+      setEdges(data.snapshot.edges);
+      if (data.versions) setCanvasVersions(data.versions);
+      if (data.settings) setCanvasSettings((s: CanvasSettings) => ({ ...s, ...data.settings }));
+      setStatus(`已加载云端项目：${data.name}`);
+    } catch { setStatus('加载云端项目失败'); }
+  }, [loadFromCloud, rememberHistory, setNodes, setEdges, setCanvasVersions, setCanvasSettings, setStatus]);
   const { saveCanvas, loadCanvas, exportCanvas, importCanvas, exportProject, importProject } = useImportExport(
     getNodes, getEdges, canvasVersions, canvasSettings,
     setNodes, setEdges, setCanvasVersions, setCanvasSettings,
@@ -136,6 +176,26 @@ function Canvas({ onLogout }: { onLogout: () => void }) {
     setEdges([]);
     setStatus('画布已清空');
   }, [rememberHistory, setEdges, setNodes]);
+
+  const autoLayoutNodes = useCallback(async () => {
+    const currentNodes = getNodes();
+    if (currentNodes.filter((node) => !node.parentNode).length < 2) {
+      setStatus('至少需要两个节点才能自动排列');
+      return;
+    }
+    setStatus('正在按连线排列节点...');
+    try {
+      const { layoutNodesByEdges } = await import('./graphLayout');
+      rememberHistory();
+      setNodes(layoutNodesByEdges(currentNodes, getEdges()));
+      window.requestAnimationFrame(() => {
+        coreRef.current?.fitView();
+        setStatus('已按连线自动排列节点');
+      });
+    } catch {
+      setStatus('自动排列失败');
+    }
+  }, [getEdges, getNodes, rememberHistory, setNodes, setStatus]);
 
   useEffect(() => {
     localStorage.setItem(SETTINGS_KEY, JSON.stringify(canvasSettings));
@@ -161,7 +221,8 @@ function Canvas({ onLogout }: { onLogout: () => void }) {
   const {
     addTemplateNode,
     addGroupNodeAt,
-    addWorkflowNode, addWorkflowNodeAt,
+    addWorkflowNode,
+    addWorkflowNodeAt,
   } = useNodeCreation(setNodes, rememberHistory, setStatus);
   const { groupSelected, ungroupSelected } = useGroupActions(getNodes, setNodes, rememberHistory, setStatus);
   useNodeFocus(getNodes, setNodes, { current: null } as React.RefObject<import('reactflow').ReactFlowInstance | null>, setStatus);
@@ -268,20 +329,22 @@ function Canvas({ onLogout }: { onLogout: () => void }) {
   const savedSnapshotRef = useRef(savedSnapshot);
 
   return (
-    <main className={`app ${isDark ? 'app--dark' : ''}`}>
-      <Topbar
-        projectName={projectName}
-        onProjectNameChange={setProjectName}
-        status={status}
-        credits={credits}
-        username={username}
-        nickname={nickname}
-        avatar={avatar}
-        onShowShortcuts={() => setShowShortcutHelp(true)}
-        onLogout={onLogout}
-        onEditProfile={() => setShowProfileModal(true)}
-        onEditPassword={() => setShowPasswordModal(true)}
-      />
+    <main className={`app ${isDark ? 'app--dark' : ''} ${isEmbedded ? 'app--embed' : ''}`}>
+      {!isEmbedded && (
+        <Topbar
+          projectName={projectName}
+          onProjectNameChange={setProjectName}
+          status={status}
+          credits={credits}
+          username={username}
+          nickname={nickname}
+          avatar={avatar}
+          onShowShortcuts={() => setShowShortcutHelp(true)}
+          onLogout={onLogout}
+          onEditProfile={() => setShowProfileModal(true)}
+          onEditPassword={() => setShowPasswordModal(true)}
+        />
+      )}
 
       <div className="app__body">
         <nav className="icon-nav">
@@ -318,7 +381,8 @@ function Canvas({ onLogout }: { onLogout: () => void }) {
                 />
               )}
               {activePanel === 'templates' && <TemplatePanel onAddTemplate={addTemplateNode} getNodes={getNodes} getEdges={getEdges} setNodes={setNodes} setEdges={setEdges} />}
-              {activePanel === 'nodeLibrary' && <NodeLibraryPanel />}
+              {activePanel === 'nodeLibrary' && <NodeLibraryPanel onAddNode={addWorkflowNode} />}
+              {activePanel === 'history' && <HistoryPanel />}
               {activePanel === 'stats' && (
                 <StatsPanelConnected
                   coreRef={coreRef}
@@ -342,6 +406,12 @@ function Canvas({ onLogout }: { onLogout: () => void }) {
                   onSave={saveLocalProject}
                   onOpen={openLocalProject}
                   onDelete={deleteLocalProject}
+                  cloudList={cloudList}
+                  syncing={syncing}
+                  onCloudSave={() => saveToCloud()}
+                  onCloudLoad={handleCloudLoad}
+                  onCloudDelete={deleteFromCloud}
+                  onCloudRefresh={fetchCloudList}
                 />
               )}
               {activePanel === 'settings' && (
@@ -418,27 +488,30 @@ function Canvas({ onLogout }: { onLogout: () => void }) {
         onDuplicate={duplicateSelected}
         onDelete={deleteSelected}
         onClear={clearCanvas}
+        onAutoLayout={autoLayoutNodes}
       />
 
       <input ref={fileInputRef} type="file" accept="application/json" hidden onChange={importCanvas} />
       <input ref={projectInputRef} type="file" accept="application/json" hidden onChange={importProject} />
 
       {imageEditorState && (
-        <ImageEditor
-          imageSrc={imageEditorState.imageSrc}
-          nodeId={imageEditorState.nodeId}
-          maskOnly={imageEditorState.maskOnly}
-          ctx={{ execute: async (defId, inputs, controls, sourceId) => {
-            const res = await fetch('/api/execute', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', ...authHeaders() },
-              body: JSON.stringify({ defId, inputs, controls, sourceId }),
-            });
-            if (!res.ok) throw new Error(`执行失败: ${res.status}`);
-            return res.json();
-          }}}
-          onClose={handleImageEditorClose}
-        />
+        <Suspense fallback={null}>
+          <ImageEditor
+            imageSrc={imageEditorState.imageSrc}
+            nodeId={imageEditorState.nodeId}
+            maskOnly={imageEditorState.maskOnly}
+            ctx={{ execute: async (defId, inputs, controls) => {
+              const res = await apiFetch('/api/execute', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ defId, inputs, controls }),
+              });
+              if (!res.ok) throw new Error(`执行失败: ${res.status}`);
+              return res.json();
+            }}}
+            onClose={handleImageEditorClose}
+          />
+        </Suspense>
       )}
 
       {showProfileModal && (

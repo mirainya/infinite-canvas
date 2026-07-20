@@ -21,6 +21,7 @@ NODE_DEF = {
     ],
     "outputs": [{"id": "image", "label": "图片", "type": "IMAGE"}],
     "controls": [
+        {"kind": "model", "id": "model", "label": "模型", "modelType": "image"},
         {"kind": "imageEdit", "id": "edit_area", "label": "放置区域"},
         {"kind": "text", "id": "edit_prompt", "label": "合成提示词", "multiline": True, "placeholder": "描述合成效果，如：自然融合到背景中"},
     ],
@@ -30,7 +31,7 @@ NODE_DEF = {
 async def process(inputs: dict, controls: dict, context: dict) -> dict:
     source = context.get("api_source")
     if not source:
-        raise RuntimeError("未配置 API 来源，请先在设置中添加")
+        raise RuntimeError("未配置棱镜连接，请在系统配置中设置")
 
     fg = inputs.get("foreground")
     bg = inputs.get("background")
@@ -60,5 +61,6 @@ async def process(inputs: dict, controls: dict, context: dict) -> dict:
             "negative_prompt": "blurry, low quality, watermark, text, logo",
             "image_urls": image_urls,
         },
+        capability=controls.get("model") or None,
         label="合成",
     )

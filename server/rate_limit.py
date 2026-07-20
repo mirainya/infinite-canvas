@@ -14,9 +14,8 @@ class RateLimiter:
         self._hits: dict[str, list[float]] = defaultdict(list)
 
     def _client_ip(self, request: Request) -> str:
-        forwarded = request.headers.get("x-forwarded-for")
-        if forwarded:
-            return forwarded.split(",")[0].strip()
+        # Uvicorn resolves trusted proxy headers before constructing Request.
+        # Reading X-Forwarded-For directly would let public clients spoof the key.
         return request.client.host if request.client else "unknown"
 
     def check(self, request: Request) -> None:

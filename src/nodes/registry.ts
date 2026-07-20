@@ -9,6 +9,7 @@ export type NodeBodyProps = {
   running: boolean;
   error: string;
   updatePV: (key: string, value: string | number | null) => void;
+  updatePVs: (values: PortValues) => void;
   handleRun: () => void;
   renderCtrl: (ctrl: ControlDef) => ReactNode;
   renderPorts: () => ReactNode;

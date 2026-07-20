@@ -18,6 +18,7 @@ NODE_DEF = {
     "inputs": [{"id": "image", "label": "原图", "type": "IMAGE"}],
     "outputs": [{"id": "image", "label": "图片", "type": "IMAGE"}],
     "controls": [
+        {"kind": "model", "id": "model", "label": "模型", "modelType": "image"},
         {"kind": "imageEdit", "id": "edit_area", "label": "编辑区域"},
         {"kind": "select", "id": "action", "label": "操作", "options": ["替换", "擦除", "添加", "扣图"], "default": "替换"},
         {"kind": "text", "id": "edit_prompt", "label": "修改提示词", "multiline": True, "placeholder": "描述要如何修改..."},
@@ -31,7 +32,7 @@ ACTION_LABELS = {"erase": "擦除", "replace": "替换", "add": "添加", "extra
 async def process(inputs: dict, controls: dict, context: dict) -> dict:
     source = context.get("api_source")
     if not source:
-        raise RuntimeError("未配置 API 来源，请先在设置中添加")
+        raise RuntimeError("未配置棱镜连接，请在系统配置中设置")
 
     client = context["http_client"]
     raw_action = (controls.get("action") or "替换").strip()
@@ -62,4 +63,4 @@ async def process(inputs: dict, controls: dict, context: dict) -> dict:
         body["image_urls"] = image_urls
 
     action_label = ACTION_LABELS.get(action, action)
-    return await submit_and_poll(client, source, body, label=action_label)
+    return await submit_and_poll(client, source, body, capability=controls.get("model") or None, label=action_label)

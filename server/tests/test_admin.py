@@ -8,115 +8,56 @@ def client(patched_app):
     return AsyncClient(transport=transport, base_url="http://test")
 
 
-async def _register_admin(client) -> str:
-    """Register first user (auto-admin) and return token."""
-    resp = await client.post("/api/auth/register", json={"username": "admin", "password": "admin123"})
-    assert resp.status_code == 200
-    return resp.json()["token"]
-
-
-async def _register_user(client, username="user1") -> tuple[str, int]:
-    """Register a normal user and return (token, user_id)."""
-    resp = await client.post("/api/auth/register", json={"username": username, "password": "pass123456"})
-    assert resp.status_code == 200
-    data = resp.json()
-    return data["token"], data["user_id"]
-
-
-def _auth(token: str) -> dict:
-    return {"Authorization": f"Bearer {token}"}
-
-
-# ── List users ──
-
-@pytest.mark.asyncio
-async def test_list_users(client):
-    admin_token = await _register_admin(client)
-    await _register_user(client, "bob")
-    resp = await client.get("/api/admin/users", headers=_auth(admin_token))
-    assert resp.status_code == 200
-    users = resp.json()
-    assert len(users) == 2
-    assert users[0]["username"] == "admin"
-    assert users[1]["username"] == "bob"
-
-
-@pytest.mark.asyncio
-async def test_list_users_requires_admin(client):
-    await _register_admin(client)
-    user_token, _ = await _register_user(client, "bob")
-    resp = await client.get("/api/admin/users", headers=_auth(user_token))
-    assert resp.status_code == 403
-
-
-@pytest.mark.asyncio
-async def test_list_users_no_auth(client):
-    resp = await client.get("/api/admin/users")
-    assert resp.status_code in (401, 403)
-
-
-# ── Patch user ──
-
-@pytest.mark.asyncio
-async def test_patch_user_credits(client, fake_pool):
-    admin_token = await _register_admin(client)
-    _, user_id = await _register_user(client, "bob")
-    resp = await client.patch(
-        f"/api/admin/users/{user_id}",
-        json={"credits_delta": 100.0},
-        headers=_auth(admin_token),
-    )
-    assert resp.status_code == 200
-    # Verify credits were added
-    user = fake_pool._find_user(id=user_id)
-    assert float(user["credits"]) == 100.0
-
-
-@pytest.mark.asyncio
-async def test_patch_user_not_found(client):
-    admin_token = await _register_admin(client)
-    resp = await client.patch(
-        "/api/admin/users/999",
-        json={"is_admin": True},
-        headers=_auth(admin_token),
-    )
-    assert resp.status_code == 404
-
-
-# ── Delete user ──
-
-@pytest.mark.asyncio
-async def test_delete_user(client, fake_pool):
-    admin_token = await _register_admin(client)
-    _, user_id = await _register_user(client, "bob")
-    assert len(fake_pool.users) == 2
-    resp = await client.delete(f"/api/admin/users/{user_id}", headers=_auth(admin_token))
-    assert resp.status_code == 200
-    assert len(fake_pool.users) == 1
-
-
-@pytest.mark.asyncio
-async def test_delete_user_not_found(client):
-    admin_token = await _register_admin(client)
-    resp = await client.delete("/api/admin/users/999", headers=_auth(admin_token))
-    assert resp.status_code == 404
-
-
-# ── Config ──
+# 鉴权由 conftest 的 dependency_overrides mock 为管理员, 这里只验业务逻辑。
 
 @pytest.mark.asyncio
 async def test_config_get_and_put(client, fake_pool):
-    admin_token = await _register_admin(client)
-
-    resp = await client.get("/api/admin/config", headers=_auth(admin_token))
+    fake_pool.config["xfs_api_key"] = "real-secret"
+    resp = await client.get("/api/admin/config")
     assert resp.status_code == 200
     config = resp.json()
-    assert "xfs_base_url" in config
+    assert "xfs_base_url" in config  # 可编辑键齐全
+    assert config["xfs_api_key"] == "********"
 
     resp = await client.put(
         "/api/admin/config",
         json={"configs": {"xfs_base_url": "https://example.com"}},
-        headers=_auth(admin_token),
     )
     assert resp.status_code == 200
     assert fake_pool.config["xfs_base_url"] == "https://example.com"
+
+
+@pytest.mark.asyncio
+async def test_config_put_keeps_masked_secret(client, fake_pool):
+    fake_pool.config["xfs_api_key"] = "real-secret"
+    resp = await client.put(
+        "/api/admin/config",
+        json={"configs": {"xfs_api_key": "********"}},
+    )
+    assert resp.status_code == 200
+    assert fake_pool.config["xfs_api_key"] == "real-secret"
+
+
+@pytest.mark.asyncio
+async def test_config_put_ignores_unknown_keys(client, fake_pool):
+    resp = await client.put(
+        "/api/admin/config",
+        json={"configs": {"not_a_real_key": "x", "prism_token": "tok"}},
+    )
+    assert resp.status_code == 200
+    assert fake_pool.config.get("prism_token") == "tok"
+    assert "not_a_real_key" not in fake_pool.config  # 非白名单键被忽略
+
+
+@pytest.mark.asyncio
+async def test_task_logs_list(client, fake_pool):
+    fake_pool.task_logs.append({"id": 1, "def_id": "x", "user_id": 1})
+    resp = await client.get("/api/admin/task-logs")
+    assert resp.status_code == 200
+    assert isinstance(resp.json(), list)
+
+
+@pytest.mark.asyncio
+async def test_task_logs_limit_is_bounded(client):
+    resp = await client.get("/api/admin/task-logs?limit=501")
+    assert resp.status_code == 422
