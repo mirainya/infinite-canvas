@@ -1,119 +1,79 @@
-# Infinite Canvas
+# Infinite Canvas V2
 
-可视化节点画布，用于编排 AI 工作流 —— 在无限缩放的画布上拖拽、连接、执行生成式任务。基于 React Flow + FastAPI 构建。
+面向 AI 图像创作的可视化工作台。V2 使用云端项目、服务端任务、统一素材库与账号中心钱包。
 
-## 当前能力
+## 核心能力
 
-- 无限画布：拖拽、缩放、连线、小地图
-- AI 节点：生图、改图、合成、九宫格切图
-- 图片下载：查看器内下载生成图、上传图和多图结果
-- 分组区域：节点加入/移出分组
-- 分类管理：颜色、标签、搜索、定位
-- 画布管理：自动保存、历史版本、本地项目列表
-- 云端同步：按账号中心用户隔离保存画布
-- 导入导出：画布 JSON、完整项目包
-- 插件系统：热加载、SSE 实时通知前端
-- Meta Prompt：视觉模型自动生成改图提示词
-- 商品套图：分步生成提示词、人工检查、批量生图
-- 统一账号：账号中心登录、资料、钱包余额与扣费
-- 体验增强：右键菜单、快捷键说明、明暗主题、网格设置
+- 十种正式节点：图像输入、文本输入、图像集合、文本集合、AI 图像、文本生成、提示词增强、图像切分、图像输出、文本输出。
+- AI 图像统一处理文生图、参考图创作、多图融合和带独立蒙版的局部编辑。
+- PostgreSQL 任务队列；页面关闭后任务继续执行。
+- XFS 素材存储、缩略图、成果预览和图片下载。
+- 幂等扣费、失败退款和异常任务恢复。
+- 增量自动保存、差异撤销记录、可视区域渲染和 Web Worker 自动排列。
+- 系统模板：商品影棚套图、灵感生图、分镜切分。
+- 账号中心统一登录、资料、权限和钱包。
 
-## 启动
+完整产品定义见 `docs/V2_PRODUCT_SPEC.md`。
 
-安装前端依赖：
+## 本地启动
+
+安装依赖：
 
 ```bash
 npm install
+python -m pip install -r server/requirements.txt
 ```
 
-安装后端依赖：
+将 `.env.example` 复制为 `server/.env` 并填写数据库、账号中心配置。Prism 与 XFS 在管理后台配置。
 
-```bash
-cd server
-pip install -r requirements.txt
-```
-
-根据 `.env.example` 创建 `server/.env`。账号中心配置是必填项；后端启动时会自动执行 `database/migrations/` 中尚未应用的迁移。
-
-启动前端：
-
-```bash
-npm run dev
-```
-
-启动后端：
+开发模式：
 
 ```bash
 cd server
 uvicorn main:app --port 7391
 ```
 
-构建检查：
-
 ```bash
-npm run build
+npm run dev
 ```
 
-运行前端测试：
+开发模式默认在 API 进程内运行一个 worker。正式环境设置：
 
-```bash
-npm test
+```env
+APP_ENV=production
+PLUGIN_HOT_RELOAD=false
+V2_EMBEDDED_WORKER=false
 ```
 
-运行后端测试：
+并单独启动任务服务：
 
 ```bash
 cd server
-python -m pytest tests/ -v
+python v2_worker.py
 ```
 
-## 快捷键
+## 检查
 
-- `?`：快捷键说明
-- `Ctrl/Cmd + S`：保存画布并创建历史版本
-- `Ctrl/Cmd + F`：搜索节点
-- `Ctrl/Cmd + D`：复制所选节点
-- `Ctrl/Cmd + Z`：撤销
-- `Ctrl/Cmd + Y`：重做
-- `Delete/Backspace`：删除所选
-- `Esc`：关闭菜单、详情和说明
-
-## 代码结构
-
-```text
-src/
-  App.tsx                 # 主流程和状态装配
-  constants.ts            # 常量、模板、默认配置
-  storage.ts              # localStorage 读写和快照
-  types.ts                # 共享类型
-  components/             # 节点、菜单、抽屉、侧边栏面板
-  hooks/                  # 画布历史、项目、搜索、导入导出等逻辑
-server/
-  main.py                 # FastAPI 入口
-  account_center.py       # 账号中心身份与资料接口
-  wallet.py               # 账号中心钱包扣费与退款
-  db.py                   # PostgreSQL 连接与迁移
-  models.py               # Pydantic 模型
-  plugin_loader.py        # 插件热加载
-  xfs.py                  # X-File-Storage 上传
-  routers/                # 认证、画布、节点、模型、模板与执行 API
-  plugins/                # 图像、文本、提示词与商品套图节点
+```bash
+npm run build
+npm run lint
+npm test
+python -m pytest server/tests -q
 ```
 
-## 后端接口
+## V2 接口
 
-- `GET /api/health` — 健康检查
-- `GET /api/plugins` — 已加载插件列表
-- `GET /api/nodes` — 节点定义列表
-- `GET /api/nodes/events` — SSE 插件变更通知
-- `POST /api/execute` — 执行节点
-- `POST /api/execute/stream` — 流式执行节点
-- `POST /api/download-image` — 安全代理并下载公网图片
-- `POST /api/auth/login` — 账号中心登录
-- `GET /api/auth/me` — 当前账号资料与余额
-- `GET /api/canvases` — 当前账号的云端画布
-- `GET /api/models` — 可用模型列表
-- `GET /api/templates` — 工作流模板
-- `GET /api/prompt-templates` — 提示词模板
-- `GET /api/task-logs` — 任务日志
-- `POST /api/meta-prompt` — 自动生成改图提示词
+- `GET/POST /api/v2/projects`
+- `GET/PATCH/DELETE /api/v2/projects/{id}`
+- `GET /api/v2/projects/{id}/versions`
+- `GET/POST /api/v2/assets`
+- `GET /api/v2/templates`
+- `POST /api/v2/templates/{id}/instantiate`
+- `GET/POST /api/v2/runs`
+- `GET /api/v2/runs/{id}`
+- `POST /api/v2/runs/{id}/cancel`
+- `GET /api/v2/admin/overview`
+- `GET /api/v2/admin/extensions`
+- `POST /api/v2/admin/extensions/reload`
+
+V1 接口暂时保留，V2 不读取旧画布数据。

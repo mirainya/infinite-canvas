@@ -8,3 +8,4 @@ watchdog>=6.0
 sse-starlette>=2.0
 PyJWT[crypto]>=2.10
 pydantic>=2.10
+python-multipart>=0.0.20

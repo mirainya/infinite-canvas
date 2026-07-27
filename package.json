@@ -15,9 +15,9 @@
   "dependencies": {
     "@dagrejs/dagre": "^3.0.0",
     "@vitejs/plugin-react": "^6.0.1",
+    "lucide-react": "^0.468.0",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
-    "react-router-dom": "^7.14.2",
     "reactflow": "^11.11.4",
     "typescript": "^6.0.3",
     "vite": "^8.0.10"
