@@ -15,11 +15,12 @@
   "dependencies": {
     "@dagrejs/dagre": "^3.0.0",
     "@vitejs/plugin-react": "^6.0.1",
+    "konva": "^10.3.0",
     "lucide-react": "^0.468.0",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
+    "react-konva": "^19.2.5",
     "reactflow": "^11.11.4",
-    "tldraw": "^5.2.5",
     "typescript": "^6.0.3",
     "vite": "^8.0.10"
   },

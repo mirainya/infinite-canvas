@@ -195,11 +195,35 @@
 .fc-version-row { border-bottom: 1px solid var(--fc-line); border-radius: 0; font-size: 11px; }
 
 .fc-canvas-shell { min-width: 0; position: relative; flex: 1; overflow: hidden; }
-.fc-stage { position: absolute; inset: 0; background: var(--fc-bg); }
-.fc-stage .tl-container { background: var(--fc-bg); color: var(--fc-ink); }
-.fc-stage .tl-background { background-color: var(--fc-bg); }
-.fc-stage .tl-selection__fg { stroke: var(--fc-violet); }
-.fc-stage .tl-selection__bg { stroke: var(--fc-violet); }
+.fc-stage {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  outline: none;
+  background-color: var(--fc-bg);
+  background-image: radial-gradient(circle, #dcd7e3 1px, transparent 1px);
+  background-size: 22px 22px;
+}
+.fc-stage canvas { display: block; }
+.fc-stage.fc-tool-draw canvas { cursor: crosshair; }
+
+.fc-text-editor {
+  position: absolute;
+  z-index: 570;
+  min-width: 80px;
+  min-height: 34px;
+  box-sizing: border-box;
+  padding: 4px;
+  resize: none;
+  overflow: hidden;
+  border: 2px solid var(--fc-violet);
+  border-radius: 4px;
+  outline: 0;
+  background: rgba(255, 255, 255, 0.96);
+  color: var(--fc-ink);
+  font-family: Inter, "Microsoft YaHei", sans-serif;
+  letter-spacing: 0;
+}
 
 .fc-empty-state {
   position: absolute;

@@ -5,7 +5,7 @@
 ## 核心能力
 
 - 自由缩放、移动、多选、画笔、文字与画板。
-- 图片上传、拖放、粘贴、素材库、蒙版、裁剪、切分和下载。
+- 图片上传、拖放、粘贴、素材库、蒙版、切分和下载。
 - AI 绘图统一处理文生图、多图参考与带蒙版的局部修改。
 - 批量结果按二维网格放入画板，不显示节点端口或默认连线。
 - PostgreSQL 任务队列；页面关闭后任务继续执行。
@@ -38,8 +38,6 @@ uvicorn main:app --port 7391
 ```bash
 npm run dev
 ```
-
-正式环境使用 tldraw 商业许可证时设置 `VITE_TLDRAW_LICENSE_KEY`。
 
 开发模式默认在 API 进程内运行一个 worker。正式环境设置：
 
@@ -80,4 +78,4 @@ python -m pytest server/tests -q
 - `GET /api/v2/admin/extensions`
 - `POST /api/v2/admin/extensions/reload`
 
-V1 接口暂时保留，V2 不读取旧画布数据。
+V1 接口暂时保留；旧节点工作流不进入自由画布，新版自由画布数据可自动转换。

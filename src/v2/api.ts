@@ -1,9 +1,16 @@
 import { apiFetch } from '../api';
 import type { Asset, ModelInfo, Project, ProjectSummary, ProjectVersion, SystemTemplate, V2Graph, WorkflowRun } from './types';
 
+export class V2ApiError extends Error {
+  constructor(message: string, readonly status: number) {
+    super(message);
+    this.name = 'V2ApiError';
+  }
+}
+
 async function responseJson<T>(response: Response): Promise<T> {
   const body = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(body.detail || body.message || `请求失败 (${response.status})`);
+  if (!response.ok) throw new V2ApiError(body.detail || body.message || `请求失败 (${response.status})`, response.status);
   return body as T;
 }
 

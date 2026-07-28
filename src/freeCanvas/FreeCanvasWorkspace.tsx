@@ -1,6 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { TLStoreSnapshot } from 'tldraw';
-import 'tldraw/tldraw.css';
 import './freeCanvas.css';
 import {
   Archive,
@@ -34,6 +32,7 @@ import CanvasStage, {
   type CanvasStageHandle,
 } from './CanvasStage';
 import { buildImageRunGraph, imageUrlsFromRun, type ImageReference, type ImageRunRequest } from './canvasHelpers';
+import { mergeCanvasDocuments } from './canvasDocument';
 
 type PanelId = 'add' | 'assets' | 'plans' | 'runs' | 'projects';
 
@@ -158,11 +157,31 @@ export default function FreeCanvasWorkspace() {
     setStatus('保存中');
     const next: Project = {
       ...current,
-      viewport: { x: snapshot.camera.x, y: snapshot.camera.y, zoom: snapshot.camera.z },
-      settings: { ...current.settings, free_canvas_document: snapshot.document, canvas_mode: 'free' },
+      viewport: { x: snapshot.camera.x, y: snapshot.camera.y, zoom: snapshot.camera.zoom },
+      settings: { ...current.settings, free_canvas_v2: snapshot.document, canvas_mode: 'free-konva' },
     };
     try {
-      const saved = await v2Api.saveProject(next, { nodes: [], edges: [] }, next.viewport);
+      let saved: Project;
+      try {
+        saved = await v2Api.saveProject(next, next.graph, next.viewport);
+      } catch (reason) {
+        if (!(reason instanceof v2Api.V2ApiError) || reason.status !== 409) throw reason;
+        const latest = await v2Api.getProject(next.id);
+        const baseDocument = current.settings.free_canvas_v2 ?? current.settings.free_canvas_document;
+        const remoteDocument = latest.settings.free_canvas_v2 ?? latest.settings.free_canvas_document;
+        const rebased: Project = {
+          ...latest,
+          name: next.name,
+          description: next.description,
+          viewport: next.viewport,
+          settings: {
+            ...latest.settings,
+            ...next.settings,
+            free_canvas_v2: mergeCanvasDocuments(baseDocument, snapshot.document, remoteDocument),
+          },
+        };
+        saved = await v2Api.saveProject(rebased, latest.graph, rebased.viewport);
+      }
       projectRef.current = saved;
       setProject(saved);
       setProjects((items) => items.map((item) => item.id === saved.id ? { ...item, ...saved } : item));
@@ -282,7 +301,7 @@ export default function FreeCanvasWorkspace() {
     }
   };
 
-  const currentDocument = project?.settings.free_canvas_document as TLStoreSnapshot | undefined;
+  const currentDocument = project?.settings.free_canvas_v2 ?? project?.settings.free_canvas_document;
 
   return (
     <main className="fc-workspace">
