@@ -386,8 +386,8 @@ export default function ImageEditor({ imageSrc, nodeId: _nodeId, ctx, maskOnly, 
 
   /* close & return result */
   const handleClose = useCallback(() => {
-    onClose(currentImage);
-  }, [onClose, currentImage]);
+    onClose(maskOnly ? undefined : currentImage);
+  }, [onClose, currentImage, maskOnly]);
 
   const confirmMask = useCallback(() => {
     const mask = generateMask();

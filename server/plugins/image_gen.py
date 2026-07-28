@@ -12,6 +12,7 @@ NODE_DEF = {
     "def_id": "image-gen",
     "name": "AI 绘图",
     "category": "生成",
+    "view": "image-gen",
     "inputs": [
         {"id": "image", "label": "单张参考", "type": "IMAGE"},
         {"id": "images", "label": "多张参考", "type": "IMAGE_LIST"},

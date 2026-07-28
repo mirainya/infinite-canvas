@@ -1,126 +1,141 @@
-import { useState } from 'react';
-import { Handle, Position } from 'reactflow';
-import { PORT_COLORS } from '../../constants';
+import { useMemo, useState } from 'react';
+import type { ControlDef } from '../../types/workflow';
 import type { NodeBodyProps } from '../registry';
+import { CreativeNodeHeader, CreativeNodePorts, CreativeNodeSection } from './CreativeNodeParts';
 
-export default function ImageComposeBody({ id, def, pv, selected, running, error, handleRun, renderCtrl }: NodeBodyProps) {
-  const [previewTab, setPreviewTab] = useState<'bg' | 'fg' | 'out'>('bg');
+type PreviewTab = 'background' | 'foreground' | 'result';
 
-  const bgSrc = pv['input-background'] as string | undefined;
-  const fgSrc = pv['input-foreground'] as string | undefined;
-  const outSrc = pv['output-image'] as string | undefined;
-  const maskSrc = pv['edit_area'] as string | undefined;
-  const previewSrc = previewTab === 'out' && outSrc ? outSrc : previewTab === 'fg' && fgSrc ? fgSrc : bgSrc;
-  const showMaskOverlay = previewTab === 'bg' && !!maskSrc;
-  const maxPorts = Math.max(def.inputs.length, def.outputs.length);
-  const ready = !!bgSrc && !!fgSrc;
-
-  const openEditor = () => {
-    if (!bgSrc || previewTab !== 'bg') return;
-    window.dispatchEvent(new CustomEvent('open-image-editor', {
-      detail: { nodeId: id, imageSrc: bgSrc, maskOnly: true },
-    }));
+export default function ImageComposeBody({
+  id,
+  def,
+  pv,
+  selected,
+  running,
+  error,
+  handleRun,
+  renderCtrl,
+}: NodeBodyProps) {
+  const [previewTab, setPreviewTab] = useState<PreviewTab>('background');
+  const controls = useMemo(() => new Map(def.controls.map((control) => [control.id, control])), [def.controls]);
+  const render = (controlId: string) => {
+    const control = controls.get(controlId) as ControlDef | undefined;
+    return control ? renderCtrl(control) : null;
   };
 
+  const background = pv['input-background'] as string | undefined;
+  const foreground = pv['input-foreground'] as string | undefined;
+  const result = pv['output-image'] as string | undefined;
+  const mask = pv.edit_area as string | undefined;
+  const ready = !!background && !!foreground;
+  const status = running ? '合成中' : result ? '已有结果' : ready ? '可以合成' : '待输入';
+  const preview = previewTab === 'background' ? background : previewTab === 'foreground' ? foreground : result;
+  const emptyPreviewLabel =
+    previewTab === 'background' ? '暂无底图' : previewTab === 'foreground' ? '暂无素材' : '暂无结果';
+
+  const openMaskEditor = () => {
+    if (!background || previewTab !== 'background') return;
+    window.dispatchEvent(
+      new CustomEvent('open-image-editor', {
+        detail: { nodeId: id, imageSrc: background, maskOnly: true },
+      }),
+    );
+  };
+
+  const tabs: Array<{ id: PreviewTab; label: string; src?: string }> = [
+    { id: 'background', label: '底图', src: background },
+    { id: 'foreground', label: '素材', src: foreground },
+    ...(result ? [{ id: 'result' as const, label: '结果', src: result }] : []),
+  ];
+
   return (
-    <div className={`wf wf--compose ${selected ? 'wf--selected' : ''}`}>
-      <div className="wf__title">{def.name}</div>
+    <div className={`wf wf--creative wf--compose ${selected ? 'wf--selected' : ''} ${running ? 'wf--running' : ''}`}>
+      <CreativeNodeHeader
+        title={def.name}
+        eyebrow="图像合成"
+        tone="compose"
+        symbol="◇"
+        status={status}
+        statusActive={ready || running || !!result}
+      />
 
-      {maxPorts > 0 && (
-        <div className="wf__ports">
-          {Array.from({ length: maxPorts }, (_, i) => {
-            const inp = def.inputs[i];
-            const out = def.outputs[i];
-            return (
-              <div key={i} className="wf__port-row">
-                <div className="wf__port-cell wf__port-cell--left">
-                  {inp && (
-                    <>
-                      <Handle type="target" position={Position.Left} id={`input-${inp.id}`} className="wf__handle" style={{ background: PORT_COLORS[inp.type] }} />
-                      <span className="wf__port-label">{inp.label}</span>
-                    </>
-                  )}
-                </div>
-                <div className="wf__port-cell wf__port-cell--right">
-                  {out && (
-                    <>
-                      <span className="wf__port-label">{out.label}</span>
-                      <Handle type="source" position={Position.Right} id={`output-${out.id}`} className="wf__handle" style={{ background: PORT_COLORS[out.type] }} />
-                    </>
-                  )}
-                </div>
+      <CreativeNodePorts def={def} />
+
+      <div className="wf__creative-body">
+        <div className="wf__compose-progress nodrag">
+          <span className={background ? 'is-ready' : ''}>
+            <i />
+            底图
+          </span>
+          <span className={foreground ? 'is-ready' : ''}>
+            <i />
+            素材
+          </span>
+          <span className={mask ? 'is-ready' : ''}>
+            <i />
+            区域
+          </span>
+        </div>
+
+        <CreativeNodeSection label="合成画面" className="wf__creative-media-section">
+          <div
+            className={`wf__creative-media nodrag ${previewTab === 'background' && background ? 'is-editable' : ''}`}
+            onClick={openMaskEditor}
+          >
+            {preview ? (
+              <>
+                <img src={preview} alt={tabs.find((tab) => tab.id === previewTab)?.label ?? '预览'} draggable={false} />
+                {previewTab === 'background' && mask && (
+                  <img className="wf__creative-mask" src={mask} alt="" draggable={false} />
+                )}
+                {previewTab === 'background' && (
+                  <span className="wf__creative-media-action">{mask ? '调整区域' : '标记区域'}</span>
+                )}
+              </>
+            ) : (
+              <div className="wf__creative-empty">
+                <span className="wf__creative-empty-symbol" aria-hidden="true">
+                  ◇
+                </span>
+                <span>{emptyPreviewLabel}</span>
               </div>
-            );
-          })}
-        </div>
-      )}
-
-      <div className="wf__compose-status nodrag">
-        <span className={bgSrc ? 'is-ready' : ''}><i />底图</span>
-        <span className={fgSrc ? 'is-ready' : ''}><i />素材</span>
-        <span className={maskSrc ? 'is-ready' : ''}><i />放置区域</span>
-      </div>
-
-      <div
-        className={`wf__image-card nodrag ${previewTab === 'bg' && bgSrc ? 'wf__image-card--editable' : ''}`}
-        onClick={openEditor}
-        style={{ position: 'relative' }}
-      >
-        {previewSrc ? (
-          <>
-            <img src={previewSrc} alt="preview" draggable={false} />
-            {showMaskOverlay && (
-              <img
-                src={maskSrc}
-                alt=""
-                draggable={false}
-                style={{
-                  position: 'absolute', inset: 0, width: '100%', height: '100%',
-                  objectFit: 'cover', opacity: 0.35, mixBlendMode: 'screen',
-                  pointerEvents: 'none',
-                }}
-              />
             )}
-            {previewTab === 'bg' && <div className="wf__image-card-overlay"><span>{maskSrc ? '编辑放置区域' : '标记放置区域'}</span></div>}
-          </>
-        ) : (
-          <div className="wf__image-card-empty">
-            <span className="wf__image-card-icon">🖼</span>
-            <span>从图片组连接底图</span>
           </div>
-        )}
+        </CreativeNodeSection>
+
+        <div
+          className={`wf__compose-tabs wf__compose-tabs--${tabs.length} nodrag`}
+          role="tablist"
+          aria-label="合成画面"
+        >
+          {tabs.map((tab) => (
+            <button
+              type="button"
+              role="tab"
+              aria-selected={previewTab === tab.id}
+              key={tab.id}
+              className={previewTab === tab.id ? 'is-active' : ''}
+              onClick={() => setPreviewTab(tab.id)}
+            >
+              {tab.src ? <img src={tab.src} alt="" draggable={false} /> : <span className="wf__compose-tab-empty" />}
+              <span>{tab.label}</span>
+            </button>
+          ))}
+        </div>
+
+        <CreativeNodeSection className="wf__creative-model">{render('model')}</CreativeNodeSection>
+
+        <CreativeNodeSection label="合成描述" className="wf__creative-prompt">
+          {render('edit_prompt')}
+        </CreativeNodeSection>
       </div>
 
-      <div className="wf__compose-thumbs nodrag">
-        <div className={`wf__compose-thumb ${previewTab === 'bg' ? 'wf__compose-thumb--active' : ''}`} onClick={() => setPreviewTab('bg')}>
-          <span className="wf__compose-thumb-label">底图</span>
-          {bgSrc ? <img src={bgSrc} alt="底图" draggable={false} /> : <span className="wf__compose-thumb-empty">—</span>}
-        </div>
-        <div className={`wf__compose-thumb ${previewTab === 'fg' ? 'wf__compose-thumb--active' : ''}`} onClick={() => setPreviewTab('fg')}>
-          <span className="wf__compose-thumb-label">素材</span>
-          {fgSrc ? <img src={fgSrc} alt="素材" draggable={false} /> : <span className="wf__compose-thumb-empty">—</span>}
-        </div>
-        {outSrc && (
-          <div className={`wf__compose-thumb ${previewTab === 'out' ? 'wf__compose-thumb--active' : ''}`} onClick={() => setPreviewTab('out')}>
-            <span className="wf__compose-thumb-label">结果</span>
-            <img src={outSrc} alt="结果" draggable={false} />
-          </div>
-        )}
-      </div>
-
-      {def.controls.filter((c) => c.kind !== 'imageEdit').length > 0 && (
-        <div className="wf__controls">
-          {def.controls.map(renderCtrl)}
-        </div>
-      )}
-
-      <div className="wf__footer">
-        {!ready && <div className="wf__compose-hint">连接底图和素材后即可合成</div>}
-        <button type="button" className={`wf__run ${running ? 'wf__run--spin' : ''}`} disabled={running || !ready} onClick={handleRun}>
-          <span className="wf__run-icon">{running ? '⟳' : '✦'}</span>
+      <footer className="wf__creative-footer">
+        {!ready && <span className="wf__creative-footer-note">缺少底图或素材</span>}
+        <button type="button" className="wf__creative-run" disabled={running || !ready} onClick={handleRun}>
+          <span aria-hidden="true">{running ? '⟳' : '✦'}</span>
           {running ? '合成中' : '开始合成'}
         </button>
-      </div>
+      </footer>
 
       {error && <div className="wf__error">{error}</div>}
     </div>

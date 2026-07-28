@@ -1,11 +1,27 @@
-import { Handle, Position } from 'reactflow';
-import { PORT_COLORS } from '../../constants';
+import { useMemo, useRef, useState } from 'react';
+import type { ControlDef } from '../../types/workflow';
+import { uploadImageFile } from '../uploadImage';
 import type { NodeBodyProps } from '../registry';
+import { CreativeNodeHeader, CreativeNodePorts, CreativeNodeSection } from './CreativeNodeParts';
+
+const PROMPT_OPTIONAL_ACTIONS = new Set(['擦除', '扣图']);
 
 export default function ImageEditBody({ id, def, pv, selected, running, error, updatePV, handleRun, renderCtrl }: NodeBodyProps) {
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState('');
+  const controls = useMemo(() => new Map(def.controls.map((control) => [control.id, control])), [def.controls]);
+  const render = (controlId: string) => {
+    const control = controls.get(controlId) as ControlDef | undefined;
+    return control ? renderCtrl(control) : null;
+  };
+
   const imgSrc = (pv['input-image'] as string) ?? null;
-  const maskSrc = pv['edit_area'] as string | undefined;
-  const maxPorts = Math.max(def.inputs.length, def.outputs.length);
+  const maskSrc = pv.edit_area as string | undefined;
+  const action = typeof pv.action === 'string' ? pv.action : '替换';
+  const prompt = typeof pv.edit_prompt === 'string' ? pv.edit_prompt.trim() : '';
+  const ready = !!imgSrc && (PROMPT_OPTIONAL_ACTIONS.has(action) || prompt.length > 0);
+  const status = running ? '处理中' : imgSrc ? (maskSrc ? '区域已标记' : '全图编辑') : '待输入';
 
   const openEditor = () => {
     if (!imgSrc) return;
@@ -14,102 +30,89 @@ export default function ImageEditBody({ id, def, pv, selected, running, error, u
     }));
   };
 
+  const handleUpload = async (file: File) => {
+    if (!file.type.startsWith('image/') || uploading) return;
+    setUploading(true);
+    setUploadError('');
+    try {
+      updatePV('input-image', await uploadImageFile(file));
+    } catch (uploadFailure) {
+      setUploadError(uploadFailure instanceof Error ? uploadFailure.message : '上传失败');
+    } finally {
+      setUploading(false);
+    }
+  };
+
   return (
-    <div className={`wf wf--image-edit ${selected ? 'wf--selected' : ''}`}>
-      <div className="wf__title">{def.name}</div>
+    <div className={`wf wf--creative wf--edit ${selected ? 'wf--selected' : ''} ${running || uploading ? 'wf--running' : ''}`}>
+      <CreativeNodeHeader
+        title={def.name}
+        eyebrow="局部编辑"
+        tone="edit"
+        symbol="◐"
+        status={uploading ? '上传中' : status}
+        statusActive={!!imgSrc || running || uploading}
+      />
 
-      {maxPorts > 0 && (
-        <div className="wf__ports">
-          {Array.from({ length: maxPorts }, (_, i) => {
-            const inp = def.inputs[i];
-            const out = def.outputs[i];
-            return (
-              <div key={i} className="wf__port-row">
-                <div className="wf__port-cell wf__port-cell--left">
-                  {inp && (
-                    <>
-                      <Handle type="target" position={Position.Left} id={`input-${inp.id}`} className="wf__handle" style={{ background: PORT_COLORS[inp.type] }} />
-                      <span className="wf__port-label">{inp.label}</span>
-                    </>
-                  )}
-                </div>
-                <div className="wf__port-cell wf__port-cell--right">
-                  {out && (
-                    <>
-                      <span className="wf__port-label">{out.label}</span>
-                      <Handle type="source" position={Position.Right} id={`output-${out.id}`} className="wf__handle" style={{ background: PORT_COLORS[out.type] }} />
-                    </>
-                  )}
-                </div>
+      <CreativeNodePorts def={def} />
+
+      <div className="wf__creative-body">
+        <CreativeNodeSection label="编辑画面" className="wf__creative-media-section">
+          <div
+            className={`wf__creative-media nodrag ${imgSrc ? 'is-editable' : ''}`}
+            onClick={openEditor}
+          >
+            {imgSrc ? (
+              <>
+                <img src={imgSrc} alt="原图" draggable={false} />
+                {maskSrc && <img className="wf__creative-mask" src={maskSrc} alt="" draggable={false} />}
+                <span className="wf__creative-media-badge">{maskSrc ? '已标记区域' : '全图'}</span>
+                <span className="wf__creative-media-action">{maskSrc ? '调整区域' : '标记区域'}</span>
+              </>
+            ) : (
+              <div className="wf__creative-empty">
+                <span className="wf__creative-empty-symbol" aria-hidden="true">▧</span>
+                <span>暂无原图</span>
+                <button type="button" onClick={(event) => { event.stopPropagation(); fileRef.current?.click(); }}>
+                  {uploading ? '上传中' : '选择图片'}
+                </button>
               </div>
-            );
-          })}
-        </div>
-      )}
-
-      <div className="wf__image-card nodrag" onClick={openEditor} style={{ position: 'relative' }}>
-        {imgSrc ? (
-          <>
-            <img src={imgSrc} alt="preview" draggable={false} />
-            {maskSrc && (
-              <img
-                src={maskSrc}
-                alt=""
-                draggable={false}
-                style={{
-                  position: 'absolute', inset: 0, width: '100%', height: '100%',
-                  objectFit: 'cover', opacity: 0.35, mixBlendMode: 'screen',
-                  pointerEvents: 'none',
-                }}
-              />
             )}
-            <div className="wf__image-card-overlay">
-              <span>{maskSrc ? '点击编辑区域' : '点击标记区域'}</span>
-            </div>
-          </>
-        ) : (
-          <div className="wf__image-card-empty">
-            <span className="wf__image-card-icon">🖼</span>
-            <span>连接上游图片或上传</span>
-            <input
-              type="file"
-              accept="image/*"
-              hidden
-              id={`upload-${id}`}
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (!file) return;
-                const reader = new FileReader();
-                reader.onload = () => updatePV('input-image', reader.result as string);
-                reader.readAsDataURL(file);
-                e.target.value = '';
-              }}
-            />
-            <button
-              type="button"
-              className="wf__image-card-upload"
-              onClick={(e) => { e.stopPropagation(); document.getElementById(`upload-${id}`)?.click(); }}
-            >
-              上传图片
-            </button>
           </div>
-        )}
-      </div>
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*"
+            hidden
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              if (file) void handleUpload(file);
+              event.target.value = '';
+            }}
+          />
+        </CreativeNodeSection>
 
-      {def.controls.filter((c) => c.kind !== 'imageEdit').length > 0 && (
-        <div className="wf__controls">
-          {def.controls.filter((c) => c.kind !== 'imageEdit').map(renderCtrl)}
+        <div className="wf__creative-grid">
+          {render('model')}
+          {render('action')}
         </div>
-      )}
 
-      <div className="wf__footer">
-        <button type="button" className={`wf__run ${running ? 'wf__run--spin' : ''}`} disabled={running} onClick={handleRun}>
-          <span className="wf__run-icon">{running ? '⟳' : '✦'}</span>
-          {running ? '运行中' : '运行'}
-        </button>
+        <CreativeNodeSection label="修改描述" className="wf__creative-prompt">
+          {render('edit_prompt')}
+        </CreativeNodeSection>
       </div>
 
-      {error && <div className="wf__error">{error}</div>}
+      <footer className="wf__creative-footer">
+        {!ready && imgSrc && !PROMPT_OPTIONAL_ACTIONS.has(action) && (
+          <span className="wf__creative-footer-note">填写修改描述</span>
+        )}
+        <button type="button" className="wf__creative-run" disabled={running || uploading || !ready} onClick={handleRun}>
+          <span aria-hidden="true">{running ? '⟳' : '✦'}</span>
+          {running ? '处理中' : `开始${action}`}
+        </button>
+      </footer>
+
+      {(error || uploadError) && <div className="wf__error">{error || uploadError}</div>}
     </div>
   );
 }
