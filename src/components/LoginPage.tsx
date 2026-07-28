@@ -45,7 +45,7 @@ export function LoginPage({ onSuccess }: { onSuccess: () => void }) {
           <span className="login-intro__mark">✦</span>
           <div>
             <h1>Infinite Canvas</h1>
-            <p>可视化 AI 工作流</p>
+            <p>自由 AI 创作画布</p>
           </div>
         </section>
         <h2 className="login-card__title">{isRegister ? '创建账号' : '登录'}</h2>

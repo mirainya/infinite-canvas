@@ -47,7 +47,8 @@ def _local_node_output(node, inputs: dict) -> dict:
     if node.type == "text-input":
         return {"text": node.data.get("text") or ""}
     if node.type == "image-collection":
-        images = [item for item in as_list(inputs.get("images")) if item]
+        images = as_list(inputs.get("images")) + as_list(node.data.get("items"))
+        images = [str(item) for item in images if str(item).strip()]
         return {"image": images[0] if images else None, "images": images}
     if node.type == "text-collection":
         texts = as_list(inputs.get("texts")) + as_list(node.data.get("items"))

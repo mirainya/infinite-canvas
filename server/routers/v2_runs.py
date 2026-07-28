@@ -16,6 +16,7 @@ router = APIRouter(prefix="/api/v2/runs", tags=["v2-runs"])
 
 class CreateRunRequest(BaseModel):
     project_id: uuid.UUID
+    graph: GraphSnapshot | None = None
 
 
 def _decode_json_fields(row, fields: tuple[str, ...]) -> dict:
@@ -36,8 +37,11 @@ async def create_run(body: CreateRunRequest, user: dict = Depends(get_current_us
     )
     if not project:
         raise HTTPException(404, "项目不存在")
-    raw_graph = json.loads(project["graph"]) if isinstance(project["graph"], str) else project["graph"]
-    graph = GraphSnapshot.model_validate(raw_graph)
+    if body.graph is not None:
+        graph = body.graph
+    else:
+        raw_graph = json.loads(project["graph"]) if isinstance(project["graph"], str) else project["graph"]
+        graph = GraphSnapshot.model_validate(raw_graph)
     order = topological_order(graph)
     executable = [
         node_id for node_id in order

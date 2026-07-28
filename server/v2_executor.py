@@ -288,6 +288,8 @@ async def materialize_output_images(output: dict, client: httpx.AsyncClient) -> 
 
 
 async def estimate_node_cost(node: GraphNode, inputs: dict) -> int:
+    if node.type == "image-split":
+        return 0
     model = str(node.data.get("model") or "")
     billing = await get_model_billing()
     info = billing.get(model, {})

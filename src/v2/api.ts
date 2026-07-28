@@ -122,11 +122,11 @@ export async function listModels(type: 'image' | 'chat'): Promise<ModelInfo[]> {
   return responseJson(await apiFetch(`/api/models?type=${type}`));
 }
 
-export async function createRun(projectId: string): Promise<WorkflowRun> {
+export async function createRun(projectId: string, graph?: V2Graph): Promise<WorkflowRun> {
   return responseJson(await apiFetch('/api/v2/runs', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ project_id: projectId }),
+    body: JSON.stringify({ project_id: projectId, ...(graph ? { graph } : {}) }),
   }));
 }
 

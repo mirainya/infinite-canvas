@@ -4,9 +4,7 @@ import App from './App';
 import { AuthProvider } from './AuthContext';
 import ErrorBoundary from './components/ErrorBoundary';
 import { getToken, isAdmin } from './components/LoginPage';
-import 'reactflow/dist/style.css';
 import './styles.css';
-import './v2/v2.css';
 
 const AdminLayout = lazy(() => import('./admin/AdminLayout').then((module) => ({ default: module.AdminLayout })));
 

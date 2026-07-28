@@ -9,6 +9,7 @@ type CanvasContextValue = {
   updateNode: (id: string, patch: Partial<V2NodeData>) => void;
   uploadImage: (file: File, kind?: string) => Promise<string>;
   openImage: (url: string) => void;
+  editMask: (nodeId: string, imageSrc: string) => void;
 };
 
 export const V2CanvasContext = createContext<CanvasContextValue | null>(null);

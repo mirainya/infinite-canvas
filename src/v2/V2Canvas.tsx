@@ -11,8 +11,6 @@ import {
   addEdge,
   Background,
   BackgroundVariant,
-  MarkerType,
-  MiniMap,
   ReactFlow,
   ReactFlowProvider,
   useEdgesState,
@@ -22,9 +20,12 @@ import {
   type EdgeChange,
   type Node,
   type NodeChange,
+  type XYPosition,
   type Viewport,
 } from 'reactflow';
 import { Copy, Maximize, Trash2 } from 'lucide-react';
+import ImageEditor from '../components/ImageEditor';
+import type { SystemContext } from '../types/workflow';
 import { canConnect, NODE_BY_TYPE, NODE_CATALOG } from './catalog';
 import { V2CanvasContext } from './CanvasContext';
 import { layoutGraph } from './layout';
@@ -32,6 +33,8 @@ import V2NodeComponent from './V2Node';
 import type { ModelInfo, V2Edge, V2Graph, V2Node, V2NodeData, V2NodeType } from './types';
 
 const nodeTypes = Object.fromEntries(NODE_CATALOG.map((item) => [item.type, V2NodeComponent]));
+
+export const V2_NODE_DRAG_MIME = 'application/x-infinite-canvas-node';
 
 export type CanvasHandle = {
   addNode: (type: V2NodeType, data?: Partial<V2NodeData>) => void;
@@ -56,6 +59,20 @@ type Props = {
 };
 
 type MenuState = { x: number; y: number; nodeId: string } | null;
+type MaskEditorState = { nodeId: string; imageSrc: string } | null;
+
+const MASK_EDITOR_CONTEXT: SystemContext = {
+  execute: async () => ({}),
+};
+
+export function dataUrlToImageFile(dataUrl: string, filename = 'mask.png') {
+  const match = /^data:(image\/(?:png|jpeg|webp));base64,([A-Za-z0-9+/=]+)$/.exec(dataUrl);
+  if (!match) throw new Error('蒙版格式无效');
+  const binary = atob(match[2]);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+  return new File([bytes], filename, { type: match[1] });
+}
 
 type HistoryEntry =
   | { kind: 'data'; nodeId: string; before: V2NodeData; after: V2NodeData; at: number }
@@ -87,6 +104,7 @@ const V2CanvasInner = forwardRef<CanvasHandle, Props>(function V2CanvasInner(pro
   const [nodes, setNodes, onNodesChangeBase] = useNodesState<V2NodeData>(props.initialGraph.nodes);
   const [edges, setEdges, onEdgesChangeBase] = useEdgesState(props.initialGraph.edges);
   const [menu, setMenu] = useState<MenuState>(null);
+  const [maskEditor, setMaskEditor] = useState<MaskEditorState>(null);
   const nodesRef = useRef(nodes as V2Node[]);
   const edgesRef = useRef(edges as V2Edge[]);
   const undoStack = useRef<HistoryEntry[]>([]);
@@ -146,20 +164,38 @@ const V2CanvasInner = forwardRef<CanvasHandle, Props>(function V2CanvasInner(pro
     applyHistory(entry, false);
   }, [applyHistory]);
 
-  const addNodeByType = useCallback((type: V2NodeType, data?: Partial<V2NodeData>) => {
+  const insertNodeAt = useCallback((type: V2NodeType, position: XYPosition, data?: Partial<V2NodeData>) => {
     const definition = NODE_BY_TYPE.get(type);
     if (!definition) return;
-    const center = reactFlow.screenToFlowPosition({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
     const node: V2Node = {
       id: `${type}-${crypto.randomUUID()}`,
       type,
-      position: { x: center.x - 143, y: center.y - 120 },
+      position,
       data: { ...definition.defaults, ...data },
     };
     record({ kind: 'structure', addedNodes: [cleanNode(node)], removedNodes: [], addedEdges: [], removedEdges: [] });
     setNodes((current) => [...current.map((item) => ({ ...item, selected: false })), { ...node, selected: true }]);
     props.onStatus(`已添加${definition.name}`);
-  }, [props, reactFlow, record, setNodes]);
+  }, [props, record, setNodes]);
+
+  const addNodeByType = useCallback((type: V2NodeType, data?: Partial<V2NodeData>) => {
+    const center = reactFlow.screenToFlowPosition({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
+    insertNodeAt(type, { x: center.x - 143, y: center.y - 120 }, data);
+  }, [insertNodeAt, reactFlow]);
+
+  const onDragOver = useCallback((event: React.DragEvent<HTMLDivElement>) => {
+    if (!event.dataTransfer.types.includes(V2_NODE_DRAG_MIME)) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'copy';
+  }, []);
+
+  const onDrop = useCallback((event: React.DragEvent<HTMLDivElement>) => {
+    const type = event.dataTransfer.getData(V2_NODE_DRAG_MIME) as V2NodeType;
+    if (!NODE_BY_TYPE.has(type)) return;
+    event.preventDefault();
+    const point = reactFlow.screenToFlowPosition({ x: event.clientX, y: event.clientY });
+    insertNodeAt(type, { x: point.x - 143, y: point.y - 24 });
+  }, [insertNodeAt, reactFlow]);
 
   const autoLayout = useCallback(async () => {
     if (nodesRef.current.length < 2) return;
@@ -198,13 +234,27 @@ const V2CanvasInner = forwardRef<CanvasHandle, Props>(function V2CanvasInner(pro
     setNodes((current) => current.map((item) => item.id === id ? { ...item, data: after } : item));
   }, [record, setNodes]);
 
+  const finishMaskEdit = useCallback(async (result?: string) => {
+    const editor = maskEditor;
+    setMaskEditor(null);
+    if (!editor || !result) return;
+    try {
+      props.onStatus('正在保存蒙版');
+      const file = dataUrlToImageFile(result, `mask-${editor.nodeId}.png`);
+      const maskUrl = await props.onUploadImage(file, 'mask');
+      updateNode(editor.nodeId, { maskUrl });
+      props.onStatus('蒙版已保存');
+    } catch (reason) {
+      props.onStatus(reason instanceof Error ? reason.message : '蒙版保存失败');
+    }
+  }, [maskEditor, props, updateNode]);
+
   const onConnect = useCallback((connection: Connection) => {
     if (!connection.source || !connection.target || !connection.sourceHandle || !connection.targetHandle) return;
     const edge = {
       ...connection,
       id: `edge-${crypto.randomUUID()}`,
-      type: 'smoothstep',
-      markerEnd: { type: MarkerType.ArrowClosed, width: 14, height: 14 },
+      type: 'default',
     } as V2Edge;
     record({ kind: 'structure', addedNodes: [], removedNodes: [], addedEdges: [cleanEdge(edge)], removedEdges: [] });
     setEdges((current) => addEdge(edge, current));
@@ -306,6 +356,7 @@ const V2CanvasInner = forwardRef<CanvasHandle, Props>(function V2CanvasInner(pro
     updateNode,
     uploadImage: props.onUploadImage,
     openImage: props.onOpenImage,
+    editMask: (nodeId: string, imageSrc: string) => setMaskEditor({ nodeId, imageSrc }),
   }), [props.projectId, props.outputs, props.imageModels, props.chatModels, props.onUploadImage, props.onOpenImage, updateNode]);
 
   return (
@@ -326,6 +377,8 @@ const V2CanvasInner = forwardRef<CanvasHandle, Props>(function V2CanvasInner(pro
             setMenu({ x: event.clientX, y: event.clientY, nodeId: node.id });
           }}
           onPaneClick={() => setMenu(null)}
+          onDragOver={onDragOver}
+          onDrop={onDrop}
           onMoveEnd={(_, viewport) => props.onViewportChange(viewport)}
           defaultViewport={props.initialViewport}
           fitView={window.innerWidth <= 680}
@@ -334,14 +387,13 @@ const V2CanvasInner = forwardRef<CanvasHandle, Props>(function V2CanvasInner(pro
           maxZoom={2.2}
           deleteKeyCode={null}
           selectionOnDrag
-          panOnScroll
+          zoomOnScroll
           onlyRenderVisibleElements={nodes.length > 80}
           elevateNodesOnSelect={false}
           proOptions={{ hideAttribution: true }}
-          defaultEdgeOptions={{ type: 'smoothstep', markerEnd: { type: MarkerType.ArrowClosed, width: 14, height: 14 } }}
+          defaultEdgeOptions={{ type: 'default' }}
         >
-          <Background variant={BackgroundVariant.Dots} gap={22} size={1.4} color="#d9cbea" />
-          {nodes.length <= 150 && <MiniMap pannable zoomable nodeStrokeWidth={2} maskColor="rgba(255,250,254,.72)" />}
+          <Background variant={BackgroundVariant.Dots} gap={28} size={1.15} color="#dcd9e4" />
         </ReactFlow>
         {menu && (
           <div className="v2-context-menu" style={{ left: menu.x, top: menu.y }} onPointerDown={(event) => event.stopPropagation()}>
@@ -349,6 +401,15 @@ const V2CanvasInner = forwardRef<CanvasHandle, Props>(function V2CanvasInner(pro
             <button type="button" onClick={() => { const target = nodesRef.current.find((node) => node.id === menu.nodeId); if (target) reactFlow.fitView({ nodes: [target], padding: 0.6, duration: 240 }); setMenu(null); }}><Maximize size={15} />定位</button>
             <button className="danger" type="button" onClick={() => deleteNode(menu.nodeId)}><Trash2 size={15} />删除</button>
           </div>
+        )}
+        {maskEditor && (
+          <ImageEditor
+            imageSrc={maskEditor.imageSrc}
+            nodeId={maskEditor.nodeId}
+            ctx={MASK_EDITOR_CONTEXT}
+            maskOnly
+            onClose={(result) => { void finishMaskEdit(result); }}
+          />
         )}
       </div>
     </V2CanvasContext.Provider>

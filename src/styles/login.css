@@ -737,6 +737,38 @@
 
 .login-card__switch:hover { color: #e15f91; }
 
+/* 登录页独立加载，保持宽版居中布局。 */
+.login-page {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: #fff8fc;
+}
+.login-page::before,
+.login-page::after,
+.login-art { display: none; }
+.login-card {
+  width: 520px;
+  max-width: 100%;
+  margin: 0;
+  padding: 28px 36px;
+  gap: 0;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.96);
+}
+.login-card__title {
+  text-align: center;
+  background: none;
+  color: #8466c8;
+  -webkit-text-fill-color: currentColor;
+}
+.login-card__subtitle { margin: 5px 0 18px; text-align: center; }
+.login-card__input { margin-bottom: 10px; }
+.login-card__remember { margin: 2px 0 14px; }
+.login-card__switch { margin-top: 12px; }
+.login-intro { justify-content: center; margin-bottom: 18px; padding-bottom: 16px; }
+
 @media (max-width: 720px) {
   .login-page {
     padding: 16px;
@@ -761,6 +793,11 @@
   .login-intro p { margin-top: 2px; font-size: 12px; }
   .login-card { width: min(360px, 100%); padding: 28px 24px; }
   .login-page::after { right: -28px; font-size: 150px; }
+}
+
+@media (max-width: 680px) {
+  .login-card { width: calc(100vw - 40px); max-width: 360px; padding: 26px 22px; }
+  .login-intro { margin-bottom: 16px; padding-bottom: 14px; }
 }
 .canvas-drop-active .react-flow__pane {
   outline: 2px dashed rgba(139, 92, 246, 0.4);

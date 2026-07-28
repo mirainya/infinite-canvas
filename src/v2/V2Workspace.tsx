@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import 'reactflow/dist/style.css';
+import './v2.css';
 import {
   Archive,
-  ChevronLeft,
   FolderOpen,
   Images,
   LayoutDashboard,
@@ -10,32 +11,31 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Play,
+  Plus,
   Redo2,
   RefreshCw,
   Save,
   Sparkles,
   Undo2,
   WandSparkles,
-  Workflow,
   X,
 } from 'lucide-react';
 import { useAuth } from '../AuthContext';
 import Lightbox from '../components/Lightbox';
 import { NODE_CATALOG } from './catalog';
 import * as v2Api from './api';
-import ProjectHub from './ProjectHub';
 import { graphPatch } from './projectPatch';
-import V2Canvas, { type CanvasHandle } from './V2Canvas';
+import V2Canvas, { V2_NODE_DRAG_MIME, type CanvasHandle } from './V2Canvas';
 import type { Asset, ModelInfo, Project, ProjectSummary, ProjectVersion, SystemTemplate, V2Graph, WorkflowRun } from './types';
 
 type PanelId = 'nodes' | 'templates' | 'assets' | 'runs' | 'projects';
 
 const PANEL_NAV = [
-  { id: 'nodes' as const, label: '节点', icon: Workflow },
+  { id: 'nodes' as const, label: '工具', icon: Sparkles },
   { id: 'templates' as const, label: '模板', icon: WandSparkles },
   { id: 'assets' as const, label: '素材', icon: Images },
-  { id: 'runs' as const, label: '任务', icon: Archive },
-  { id: 'projects' as const, label: '项目', icon: FolderOpen },
+  { id: 'runs' as const, label: '记录', icon: Archive },
+  { id: 'projects' as const, label: '画布', icon: FolderOpen },
 ];
 
 const GROUPED_NODES = ['输入', '整理', '创作', '输出'].map((category) => ({
@@ -50,7 +50,21 @@ function NodeLibrary({ onAdd }: { onAdd: CanvasHandle['addNode'] }) {
       <div>
         {group.items.map((item) => {
           const Icon = item.icon;
-          return <button type="button" key={item.type} className={`tone-${item.tone}`} onClick={() => onAdd(item.type)}><span><Icon size={16} /></span>{item.name}</button>;
+          return (
+            <button
+              type="button"
+              key={item.type}
+              className={`tone-${item.tone}`}
+              draggable
+              onClick={() => onAdd(item.type)}
+              onDragStart={(event) => {
+                event.dataTransfer.effectAllowed = 'copy';
+                event.dataTransfer.setData(V2_NODE_DRAG_MIME, item.type);
+              }}
+            >
+              <span><Icon size={16} /></span>{item.name}
+            </button>
+          );
         })}
       </div>
     </section>
@@ -85,6 +99,7 @@ export default function V2Workspace() {
   const [running, setRunning] = useState(false);
   const [templateSaving, setTemplateSaving] = useState(false);
   const [canvasEpoch, setCanvasEpoch] = useState(0);
+  const [bootstrapKey, setBootstrapKey] = useState(0);
   const canvasRef = useRef<CanvasHandle>(null);
   const graphRef = useRef<V2Graph>({ nodes: [], edges: [] });
   const persistedGraphRef = useRef<V2Graph>({ nodes: [], edges: [] });
@@ -97,36 +112,6 @@ export default function V2Workspace() {
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const persistRef = useRef<() => Promise<void>>(async () => undefined);
 
-  const refreshHome = useCallback(async () => {
-    setLoading(true);
-    setError('');
-    try {
-      const [projectItems, templateItems] = await Promise.all([v2Api.listProjects(), v2Api.listTemplates()]);
-      setProjects(projectItems);
-      setTemplates(templateItems);
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : '读取失败');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    let active = true;
-    Promise.all([v2Api.listProjects(), v2Api.listTemplates()])
-      .then(([projectItems, templateItems]) => {
-        if (!active) return;
-        setProjects(projectItems);
-        setTemplates(templateItems);
-      })
-      .catch((reason) => {
-        if (active) setError(reason instanceof Error ? reason.message : '读取失败');
-      })
-      .finally(() => {
-        if (active) setLoading(false);
-      });
-    return () => { active = false; };
-  }, []);
   useEffect(() => {
     Promise.all([v2Api.listModels('image'), v2Api.listModels('chat')])
       .then(([images, chats]) => { setImageModels(images); setChatModels(chats); })
@@ -177,6 +162,34 @@ export default function V2Workspace() {
       setLoading(false);
     }
   }, [openProject]);
+
+  useEffect(() => {
+    let active = true;
+
+    const openInitialCanvas = async () => {
+      setLoading(true);
+      setError('');
+      try {
+        const [projectItems, templateItems] = await Promise.all([v2Api.listProjects(), v2Api.listTemplates()]);
+        if (!active) return;
+        setProjects(projectItems);
+        setTemplates(templateItems);
+        if (projectRef.current) return;
+        if (projectItems.length > 0) {
+          await openProject(projectItems[0].id);
+        } else {
+          await createBlank('未命名画布');
+        }
+      } catch (reason) {
+        if (active) setError(reason instanceof Error ? reason.message : '画布读取失败');
+      } finally {
+        if (active) setLoading(false);
+      }
+    };
+
+    void openInitialCanvas();
+    return () => { active = false; };
+  }, [bootstrapKey, createBlank, openProject]);
 
   const createFromTemplate = useCallback(async (id: string) => {
     setLoading(true);
@@ -381,14 +394,39 @@ export default function V2Workspace() {
   const autoLayout = useCallback(() => void canvasRef.current?.autoLayout(), []);
 
   if (!project) {
-    return <ProjectHub projects={projects} templates={templates} loading={loading} error={error} username={username} avatar={avatar} onOpen={(id) => void openProject(id)} onCreate={(name) => void createBlank(name)} onTemplate={(id) => void createFromTemplate(id)} onLogout={logout} />;
+    return (
+      <main className="v2-workspace v2-workspace--loading" aria-busy={loading}>
+        <header className="v2-topbar">
+          <span className="v2-brand-mark"><Sparkles size={17} /></span>
+          <strong className="v2-loading-title">Infinite Canvas</strong>
+          <button className="v2-account-button" type="button" title="退出登录" onClick={logout}>
+            {avatar ? <img src={avatar} alt="" /> : username.slice(0, 1).toUpperCase()}<LogOut size={15} />
+          </button>
+        </header>
+        <div className="v2-workspace__body">
+          <nav className="v2-rail" aria-label="画布菜单">
+            {PANEL_NAV.map((item) => {
+              const Icon = item.icon;
+              return <button key={item.id} type="button" data-panel={item.id} disabled><Icon size={19} /><span>{item.label}</span></button>;
+            })}
+          </nav>
+          <section className="v2-canvas-wrap">
+            <div className="v2-canvas-loading">
+              {loading && <RefreshCw className="spin" size={22} />}
+              <strong>{error || '正在准备画布...'}</strong>
+              {error && <button type="button" onClick={() => setBootstrapKey((value) => value + 1)}>重试</button>}
+            </div>
+          </section>
+        </div>
+      </main>
+    );
   }
 
   return (
     <main className="v2-workspace">
       <header className="v2-topbar">
-        <button className="v2-brand-button" type="button" title="返回项目" onClick={() => { setProject(null); projectRef.current = null; void refreshHome(); }}><ChevronLeft size={18} /><Sparkles size={16} /></button>
-        <input className="v2-project-name" value={project.name} maxLength={120} onChange={(event) => renameProject(event.target.value)} />
+        <span className="v2-brand-mark" title="Infinite Canvas"><Sparkles size={17} /></span>
+        <input className="v2-project-name" aria-label="画布名称" value={project.name} maxLength={120} onChange={(event) => renameProject(event.target.value)} />
         <span className={`v2-save-status ${status === '已同步' ? 'is-saved' : ''}`}>{status}</span>
         <div className="v2-topbar__tools">
           <button type="button" title="撤销" onClick={undo}><Undo2 size={17} /></button>
@@ -405,7 +443,7 @@ export default function V2Workspace() {
         <nav className="v2-rail">
           {PANEL_NAV.map((item) => {
             const Icon = item.icon;
-            return <button key={item.id} type="button" title={item.label} className={panel === item.id && panelOpen ? 'active' : ''} onClick={() => { setPanel(item.id); setPanelOpen(panel === item.id ? !panelOpen : true); }}><Icon size={19} /><span>{item.label}</span></button>;
+            return <button key={item.id} type="button" data-panel={item.id} title={item.label} className={panel === item.id && panelOpen ? 'active' : ''} onClick={() => { setPanel(item.id); setPanelOpen(panel === item.id ? !panelOpen : true); }}><Icon size={19} /><span>{item.label}</span></button>;
           })}
           <button className="v2-rail__collapse" type="button" title={panelOpen ? '收起面板' : '展开面板'} onClick={() => setPanelOpen((open) => !open)}>{panelOpen ? <PanelLeftClose size={18} /> : <PanelLeftOpen size={18} />}</button>
         </nav>
@@ -425,6 +463,7 @@ export default function V2Workspace() {
               {panel === 'assets' && <AssetLibrary assets={assets} onAdd={addAssetNode} />}
               {panel === 'runs' && runs.map((run) => <div className={`v2-run-row status-${run.status}`} key={run.id}><div><strong>{{ queued: '排队中', running: '执行中', succeeded: '已完成', failed: '失败', cancelled: '已取消' }[run.status]}</strong><span>{run.progress}% · {run.credits_used} 积分</span></div>{(run.status === 'queued' || run.status === 'running') && <button type="button" onClick={() => void v2Api.cancelRun(run.id)}>取消</button>}{run.error && <small>{run.error}</small>}</div>)}
               {panel === 'projects' && <>
+                <button className="v2-sidebar-action" type="button" disabled={loading} onClick={() => void createBlank('未命名画布')}><Plus size={15} />新建空白画布</button>
                 {projects.map((item) => <button className={`v2-project-mini ${item.id === project.id ? 'active' : ''}`} type="button" key={item.id} onClick={() => void openProject(item.id)}><FolderOpen size={16} /><span><strong>{item.name}</strong><small>版本 {item.revision}</small></span></button>)}
                 <div className="v2-sidebar-section-heading"><strong>版本记录</strong><button type="button" title="保存当前版本" onClick={() => void createVersion()}><Save size={14} /></button></div>
                 {versions.length === 0 && <div className="v2-sidebar-empty">暂无手动版本</div>}
