@@ -13,9 +13,10 @@ export default function ImageComposeBody({ id, def, pv, selected, running, error
   const previewSrc = previewTab === 'out' && outSrc ? outSrc : previewTab === 'fg' && fgSrc ? fgSrc : bgSrc;
   const showMaskOverlay = previewTab === 'bg' && !!maskSrc;
   const maxPorts = Math.max(def.inputs.length, def.outputs.length);
+  const ready = !!bgSrc && !!fgSrc;
 
   const openEditor = () => {
-    if (!bgSrc) return;
+    if (!bgSrc || previewTab !== 'bg') return;
     window.dispatchEvent(new CustomEvent('open-image-editor', {
       detail: { nodeId: id, imageSrc: bgSrc, maskOnly: true },
     }));
@@ -54,7 +55,17 @@ export default function ImageComposeBody({ id, def, pv, selected, running, error
         </div>
       )}
 
-      <div className="wf__image-card nodrag" onClick={openEditor} style={{ position: 'relative' }}>
+      <div className="wf__compose-status nodrag">
+        <span className={bgSrc ? 'is-ready' : ''}><i />底图</span>
+        <span className={fgSrc ? 'is-ready' : ''}><i />素材</span>
+        <span className={maskSrc ? 'is-ready' : ''}><i />放置区域</span>
+      </div>
+
+      <div
+        className={`wf__image-card nodrag ${previewTab === 'bg' && bgSrc ? 'wf__image-card--editable' : ''}`}
+        onClick={openEditor}
+        style={{ position: 'relative' }}
+      >
         {previewSrc ? (
           <>
             <img src={previewSrc} alt="preview" draggable={false} />
@@ -70,12 +81,12 @@ export default function ImageComposeBody({ id, def, pv, selected, running, error
                 }}
               />
             )}
-            {previewTab === 'bg' && <div className="wf__image-card-overlay"><span>{maskSrc ? '点击编辑区域' : '点击标记区域'}</span></div>}
+            {previewTab === 'bg' && <div className="wf__image-card-overlay"><span>{maskSrc ? '编辑放置区域' : '标记放置区域'}</span></div>}
           </>
         ) : (
           <div className="wf__image-card-empty">
             <span className="wf__image-card-icon">🖼</span>
-            <span>连接底图后可预览</span>
+            <span>从图片组连接底图</span>
           </div>
         )}
       </div>
@@ -104,9 +115,10 @@ export default function ImageComposeBody({ id, def, pv, selected, running, error
       )}
 
       <div className="wf__footer">
-        <button type="button" className={`wf__run ${running ? 'wf__run--spin' : ''}`} disabled={running} onClick={handleRun}>
+        {!ready && <div className="wf__compose-hint">连接底图和素材后即可合成</div>}
+        <button type="button" className={`wf__run ${running ? 'wf__run--spin' : ''}`} disabled={running || !ready} onClick={handleRun}>
           <span className="wf__run-icon">{running ? '⟳' : '✦'}</span>
-          {running ? '运行中' : '运行'}
+          {running ? '合成中' : '开始合成'}
         </button>
       </div>
 

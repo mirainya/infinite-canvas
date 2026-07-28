@@ -238,7 +238,7 @@ const CanvasCore = forwardRef<CanvasCoreHandle, CanvasCoreProps>(function Canvas
   }, [compactViewport]);
 
   const fitView = useCallback(() => {
-    reactFlowRef.current?.fitView({ padding: 0.2, duration: 300, minZoom: compactViewport ? 0.55 : 0.2 });
+    reactFlowRef.current?.fitView({ padding: compactViewport ? 0.28 : 0.32, duration: 300, minZoom: compactViewport ? 0.55 : 0.2 });
     setStatus('视图已适配画布');
   }, [compactViewport, setStatus]);
 

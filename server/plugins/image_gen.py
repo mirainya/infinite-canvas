@@ -10,9 +10,12 @@ logger = logging.getLogger(__name__)
 
 NODE_DEF = {
     "def_id": "image-gen",
-    "name": "AI 生图",
+    "name": "AI 绘图",
     "category": "生成",
-    "inputs": [{"id": "image", "label": "参考图(可选)", "type": "IMAGE"}],
+    "inputs": [
+        {"id": "image", "label": "单张参考", "type": "IMAGE"},
+        {"id": "images", "label": "多张参考", "type": "IMAGE_LIST"},
+    ],
     "outputs": [
         {"id": "image", "label": "图片", "type": "IMAGE"},
         {"id": "images", "label": "多图", "type": "IMAGE_LIST"},
@@ -36,6 +39,17 @@ def _collect_image_urls(inputs: dict, controls: dict) -> list[str]:
     if ref_input and isinstance(ref_input, str):
         urls.append(ref_input)
 
+    ref_inputs = inputs.get("images")
+    if isinstance(ref_inputs, list):
+        urls.extend(url for url in ref_inputs if isinstance(url, str) and url.strip())
+    elif isinstance(ref_inputs, str) and ref_inputs.strip():
+        try:
+            parsed_inputs = json.loads(ref_inputs)
+            if isinstance(parsed_inputs, list):
+                urls.extend(url for url in parsed_inputs if isinstance(url, str) and url.strip())
+        except json.JSONDecodeError:
+            pass
+
     raw = controls.get("ref_images") or ""
     if isinstance(raw, str) and raw.strip():
         try:
@@ -46,7 +60,7 @@ def _collect_image_urls(inputs: dict, controls: dict) -> list[str]:
             if raw.startswith("http"):
                 urls.append(raw)
 
-    return urls
+    return list(dict.fromkeys(urls))
 
 
 async def process(inputs: dict, controls: dict, context: dict) -> dict:

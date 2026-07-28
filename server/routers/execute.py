@@ -28,6 +28,7 @@ FREE_NODE_IDS = {
     "grid-split",
     "image-preview",
     "image-upload",
+    "image-group",
     "text-box",
     "text-split",
 }
