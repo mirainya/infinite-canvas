@@ -9,17 +9,22 @@ import {
   type ClipboardEvent as ReactClipboardEvent,
   type DragEvent,
 } from 'react';
-import { Layer, Line, Rect, Stage, Transformer } from 'react-konva';
+import { Arrow as KonvaArrow, Layer, Line, Rect, Stage, Transformer } from 'react-konva';
 import type Konva from 'konva';
 import {
   Download,
   Eye,
+  GitBranch,
   ImagePlus,
   LoaderCircle,
   Paintbrush,
+  PanelTopClose,
+  PanelTopOpen,
   Play,
   Scissors,
   Sparkles,
+  Star,
+  Target,
   Ungroup,
   X,
 } from 'lucide-react';
@@ -28,7 +33,10 @@ import type { Asset, ModelInfo } from '../v2/types';
 import { resultGrid, type ImageReference, type ImageRunRequest } from './canvasHelpers';
 import CanvasItemView from './CanvasItemView';
 import {
+  availableCanvasSpaceCenter,
+  canvasRelationships,
   canvasId,
+  createCanvasSpace,
   itemBounds,
   migrateCanvasDocument,
   selectedImageData,
@@ -36,8 +44,10 @@ import {
   type CanvasImageData,
   type CanvasImageGroupItem,
   type CanvasImageItem,
+  type CanvasFrameItem,
   type CanvasItem,
   type CanvasPoint,
+  type CanvasSpacePresetId,
   type FreeCanvasDocument,
 } from './canvasDocument';
 
@@ -52,6 +62,7 @@ export type CanvasStageHandle = {
   addAssets: (assets: Asset[], point?: CanvasPoint) => void;
   addText: (point?: CanvasPoint) => void;
   addFrames: (names: string[], point?: CanvasPoint) => void;
+  createSpace: (preset: CanvasSpacePresetId, point?: CanvasPoint) => void;
   setTool: (tool: string) => void;
   setImageMask: (shapeId: string, maskUrl: string) => void;
   snapshot: () => CanvasSnapshot;
@@ -125,6 +136,78 @@ function unionBounds(items: CanvasItem[]) {
 
 function overlap(left: { x: number; y: number; width: number; height: number }, right: { x: number; y: number; width: number; height: number }) {
   return left.x <= right.x + right.width && left.x + left.width >= right.x && left.y <= right.y + right.height && left.y + left.height >= right.y;
+}
+
+function frameAtPoint(items: CanvasItem[], point: CanvasPoint) {
+  return [...items].reverse().find((item): item is CanvasFrameItem => item.type === 'frame'
+    && point.x >= item.x && point.x <= item.x + item.width
+    && point.y >= item.y && point.y <= item.y + item.height);
+}
+
+function placeImageInFrame(image: CanvasImageItem, frame: CanvasFrameItem, offset = 0): CanvasImageItem {
+  const area = { x: frame.x + 14, y: frame.y + 64, width: frame.width - 28, height: frame.height - 80 };
+  const scale = Math.min(area.width / image.width, area.height / image.height);
+  const width = image.width * scale;
+  const height = image.height * scale;
+  return {
+    ...image,
+    x: area.x + (area.width - width) / 2 + offset * 12,
+    y: area.y + (area.height - height) / 2 + offset * 12,
+    width,
+    height,
+    frameId: frame.id,
+    spaceId: frame.spaceId,
+  };
+}
+
+function assetCandidateGroup(assets: Asset[], center: CanvasPoint, frame?: CanvasFrameItem): CanvasImageGroupItem {
+  const { columns, rows } = resultGrid(assets.length);
+  const gap = 8;
+  const padding = 10;
+  const header = 38;
+  const width = frame ? frame.width - 28 : columns * 220 + (columns - 1) * gap + padding * 2;
+  const height = frame ? frame.height - 80 : header + rows * 220 + (rows - 1) * gap + padding * 2;
+  const cellWidth = (width - padding * 2 - (columns - 1) * gap) / columns;
+  const cellHeight = (height - header - padding * 2 - (rows - 1) * gap) / rows;
+  const images = assets.map((asset, index): CanvasImageData => {
+    const imageWidth = Math.max(32, cellWidth - 6);
+    const imageHeight = Math.max(32, cellHeight - 6);
+    const column = index % columns;
+    const row = Math.floor(index / columns);
+    return {
+      id: canvasId('image'),
+      url: asset.original_url,
+      previewUrl: asset.thumbnail_url || asset.original_url,
+      name: asset.filename,
+      naturalWidth: asset.width,
+      naturalHeight: asset.height,
+      x: padding + column * (cellWidth + gap) + 3,
+      y: header + padding + row * (cellHeight + gap) + 3,
+      width: imageWidth,
+      height: imageHeight,
+      libraryAssetId: asset.id,
+      frameId: frame?.id,
+      spaceId: frame?.spaceId,
+    };
+  });
+  return {
+    id: canvasId('group'),
+    type: 'image-group',
+    x: frame ? frame.x + 14 : center.x - width / 2,
+    y: frame ? frame.y + 64 : center.y - height / 2,
+    width,
+    height,
+    rotation: 0,
+    opacity: 1,
+    frameId: frame?.id,
+    spaceId: frame?.spaceId,
+    name: `候选池 · ${assets.length} 张`,
+    columns,
+    gap,
+    padding,
+    images,
+    featuredImageId: images[0]?.id,
+  };
 }
 
 const CanvasStage = forwardRef<CanvasStageHandle, CanvasStageProps>(function CanvasStage(props, ref) {
@@ -221,7 +304,41 @@ const CanvasStage = forwardRef<CanvasStageHandle, CanvasStageProps>(function Can
     };
   }, []);
 
+  const focusBounds = useCallback((bounds: { x: number; y: number; width: number; height: number }, maxZoom = 1.1) => {
+    const topInset = 54;
+    const bottomInset = 190;
+    const availableHeight = Math.max(220, size.height - topInset - bottomInset);
+    const zoom = Math.max(0.08, Math.min(maxZoom, Math.min((size.width - 120) / Math.max(bounds.width, 1), availableHeight / Math.max(bounds.height, 1))));
+    setCamera({
+      x: size.width / 2 - (bounds.x + bounds.width / 2) * zoom,
+      y: topInset + availableHeight / 2 - (bounds.y + bounds.height / 2) * zoom,
+      zoom,
+    });
+  }, [setCamera, size]);
+
   const selectedItems = useMemo(() => document.items.filter((item) => selectedIds.includes(item.id)), [document, selectedIds]);
+  const selectedFrame = selectedItems.find((item): item is CanvasFrameItem => item.type === 'frame');
+  const selectedSpace = selectedItems.find((item) => item.type === 'space');
+  const selectedGroup = selectedItems.find((item): item is CanvasImageGroupItem => item.type === 'image-group');
+  const contentCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const item of document.items) {
+      if (item.frameId) counts.set(item.frameId, (counts.get(item.frameId) || 0) + 1);
+    }
+    return counts;
+  }, [document]);
+  const spaceProgress = useMemo(() => {
+    const progress = new Map<string, { completed: number; total: number }>();
+    for (const item of document.items) {
+      if (item.type !== 'frame' || !item.spaceId) continue;
+      const current = progress.get(item.spaceId) || { completed: 0, total: 0 };
+      current.total += 1;
+      if ((contentCounts.get(item.id) || 0) > 0) current.completed += 1;
+      progress.set(item.spaceId, current);
+    }
+    return progress;
+  }, [contentCounts, document]);
+  const relationships = useMemo(() => canvasRelationships(document, selectedIds), [document, selectedIds]);
   const renderedItems = useMemo(() => {
     if (document.items.length <= 300) return document.items;
     const overscan = 600 / camera.zoom;
@@ -243,45 +360,60 @@ const CanvasStage = forwardRef<CanvasStageHandle, CanvasStageProps>(function Can
   const primary = references[0];
   const selectedModel = model || props.imageModels[0]?.code || '';
 
+  useEffect(() => {
+    if (selectedFrame?.aspectRatio) setAspectRatio(selectedFrame.aspectRatio);
+  }, [selectedFrame?.aspectRatio]);
+
   const anchor = useCallback(() => {
+    if (selectedFrame) return { x: selectedFrame.x + 16, y: selectedFrame.y + 64 };
     const bounds = unionBounds(selectedItems);
     return bounds ? { x: bounds.x + bounds.width + 80, y: bounds.y } : pageCenter();
-  }, [pageCenter, selectedItems]);
+  }, [pageCenter, selectedFrame, selectedItems]);
 
   const addItem = useCallback((item: CanvasItem) => {
     commit((current) => ({ ...current, items: [...current.items, item] }));
     setSelectedIds([item.id]);
   }, [commit]);
 
-  const addAsset = useCallback((asset: Asset, point = pageCenter()) => {
+  const addAsset = useCallback((asset: Asset, point?: CanvasPoint) => {
+    const target = point ? frameAtPoint(documentRef.current.items, point) : selectedFrame;
+    const placement = point || pageCenter();
     const display = imageDisplaySize(asset.width, asset.height);
-    addItem(hostedImage({
+    const image = hostedImage({
       url: asset.original_url,
       previewUrl: asset.thumbnail_url || asset.original_url,
       width: asset.width,
       height: asset.height,
       name: asset.filename,
-    }, { x: point.x - display.width / 2, y: point.y - display.height / 2 }, { libraryAssetId: asset.id }));
-  }, [addItem, pageCenter]);
+    }, { x: placement.x - display.width / 2, y: placement.y - display.height / 2 }, { libraryAssetId: asset.id });
+    addItem(target ? placeImageInFrame(image, target) : image);
+  }, [addItem, pageCenter, selectedFrame]);
 
-  const addAssets = useCallback((assets: Asset[], point = pageCenter()) => {
+  const addAssets = useCallback((assets: Asset[], point?: CanvasPoint) => {
     if (!assets.length) return;
+    const placement = point || pageCenter();
+    const target = point ? frameAtPoint(documentRef.current.items, point) : selectedFrame;
+    if (assets.length > 1) {
+      addItem(assetCandidateGroup(assets, placement, target));
+      return;
+    }
     const { columns } = resultGrid(assets.length);
     const created = assets.map((asset, index) => {
       const display = imageDisplaySize(asset.width, asset.height, 260);
       const column = index % columns;
       const row = Math.floor(index / columns);
-      return hostedImage({
+      const image = hostedImage({
         url: asset.original_url,
         previewUrl: asset.thumbnail_url || asset.original_url,
         width: asset.width,
         height: asset.height,
         name: asset.filename,
-      }, { x: point.x + column * 290, y: point.y + row * 290 }, { libraryAssetId: asset.id, width: display.width, height: display.height });
+      }, { x: placement.x + column * 290, y: placement.y + row * 290 }, { libraryAssetId: asset.id, width: display.width, height: display.height });
+      return target ? placeImageInFrame(image, target, index) : image;
     });
     commit((current) => ({ ...current, items: [...current.items, ...created] }));
     setSelectedIds(created.map((item) => item.id));
-  }, [commit, pageCenter]);
+  }, [addItem, commit, pageCenter, selectedFrame]);
 
   const addText = useCallback((point = pageCenter()) => {
     const item: CanvasItem = {
@@ -302,6 +434,14 @@ const CanvasStage = forwardRef<CanvasStageHandle, CanvasStageProps>(function Can
     commit((current) => ({ ...current, items: [...created, ...current.items] }));
     setSelectedIds(created.map((item) => item.id));
   }, [commit, pageCenter]);
+
+  const addSpace = useCallback((preset: CanvasSpacePresetId, point?: CanvasPoint) => {
+    const center = point || availableCanvasSpaceCenter(preset, documentRef.current.items, pageCenter());
+    const created = createCanvasSpace(preset, center);
+    commit((current) => ({ ...current, items: [...current.items, ...created.items] }));
+    setSelectedIds([created.space.id]);
+    focusBounds(created.space, 0.92);
+  }, [commit, focusBounds, pageCenter]);
 
   const setImageMask = useCallback((shapeId: string, maskUrl: string) => {
     commit((current) => ({
@@ -326,13 +466,14 @@ const CanvasStage = forwardRef<CanvasStageHandle, CanvasStageProps>(function Can
     addAssets,
     addText,
     addFrames,
+    createSpace: addSpace,
     setTool: (next) => { setToolState(next === 'draw' ? 'draw' : 'select'); hostRef.current?.focus(); },
     setImageMask,
     snapshot: () => ({ document: documentRef.current, camera: cameraRef.current }),
     undo,
     redo,
     fit,
-  }), [addAsset, addAssets, addFrames, addText, fit, redo, setImageMask, undo]);
+  }), [addAsset, addAssets, addFrames, addSpace, addText, fit, redo, setImageMask, undo]);
 
   useEffect(() => {
     const transformer = transformerRef.current;
@@ -375,6 +516,11 @@ const CanvasStage = forwardRef<CanvasStageHandle, CanvasStageProps>(function Can
       const dx = x - source.x;
       const dy = y - source.y;
       const moving = selectedIds.includes(id) ? new Set(selectedIds) : new Set([id]);
+      for (const selectedId of [...moving]) {
+        const selected = current.items.find((item) => item.id === selectedId);
+        if (selected?.type === 'space') current.items.filter((item) => item.spaceId === selected.id).forEach((item) => moving.add(item.id));
+        if (selected?.type === 'frame') current.items.filter((item) => item.frameId === selected.id).forEach((item) => moving.add(item.id));
+      }
       return { ...current, items: current.items.map((item) => moving.has(item.id) ? { ...item, x: item.x + dx, y: item.y + dy } : item) };
     });
   }, [commit, selectedIds]);
@@ -406,7 +552,7 @@ const CanvasStage = forwardRef<CanvasStageHandle, CanvasStageProps>(function Can
         if (item.type !== 'image-group' || !selected.has(item.id)) return true;
         for (const image of item.images) images.push({
           ...image, type: 'image', x: item.x + image.x, y: item.y + image.y,
-          rotation: item.rotation, opacity: item.opacity,
+          rotation: item.rotation, opacity: item.opacity, frameId: item.frameId, spaceId: item.spaceId,
         });
         return false;
       });
@@ -415,6 +561,63 @@ const CanvasStage = forwardRef<CanvasStageHandle, CanvasStageProps>(function Can
     if (images.length) setSelectedIds(images.map((item) => item.id));
   }, [commit, selectedIds]);
 
+  const selectCandidate = useCallback((groupId: string, imageId: string) => {
+    commit((current) => ({
+      ...current,
+      items: current.items.map((item) => item.type === 'image-group' && item.id === groupId ? { ...item, featuredImageId: imageId } : item),
+    }));
+    setSelectedIds([groupId]);
+  }, [commit]);
+
+  const toggleCandidatePool = useCallback(() => {
+    commit((current) => ({
+      ...current,
+      items: current.items.map((item) => {
+        if (item.type !== 'image-group' || !selectedIds.includes(item.id)) return item;
+        if (item.collapsed) return {
+          ...item,
+          collapsed: false,
+          width: item.expandedWidth || item.width,
+          height: item.expandedHeight || item.height,
+        };
+        return {
+          ...item,
+          collapsed: true,
+          expandedWidth: item.width,
+          expandedHeight: item.height,
+          width: Math.min(340, item.width),
+          height: Math.min(340, item.height),
+        };
+      }),
+    }));
+  }, [commit, selectedIds]);
+
+  const promoteFeatured = useCallback(() => {
+    const group = selectedItems.find((item): item is CanvasImageGroupItem => item.type === 'image-group');
+    const featured = group?.images.find((image) => image.id === group.featuredImageId) || group?.images[0];
+    if (!group || !featured) return;
+    const display = imageDisplaySize(featured.naturalWidth, featured.naturalHeight, 380);
+    const parentSpace = group.spaceId
+      ? documentRef.current.items.find((item) => item.type === 'space' && item.id === group.spaceId)
+      : undefined;
+    const promoted: CanvasImageItem = {
+      ...featured,
+      id: canvasId('image'),
+      type: 'image',
+      x: parentSpace ? parentSpace.x + parentSpace.width + 80 : group.x + group.width + 64,
+      y: parentSpace ? parentSpace.y : group.y,
+      width: display.width,
+      height: display.height,
+      rotation: 0,
+      opacity: 1,
+      frameId: undefined,
+      spaceId: undefined,
+      name: `精选 · ${featured.name}`,
+      referenceIds: [featured.id],
+    };
+    addItem(promoted);
+  }, [addItem, selectedItems]);
+
   const insertResults = useCallback(async (urls: string[], point: CanvasPoint, request?: ImageRunRequest) => {
     if (!urls.length) return;
     const sizes = await Promise.all(urls.map(imageSize));
@@ -422,40 +625,55 @@ const CanvasStage = forwardRef<CanvasStageHandle, CanvasStageProps>(function Can
       generationPrompt: request.prompt,
       generationModel: request.model,
       referenceIds: request.references.map((item) => item.shapeId),
+      frameId: selectedFrame?.id,
+      spaceId: selectedFrame?.spaceId,
     } : {};
     if (urls.length === 1) {
       const item = hostedImage({ url: urls[0], width: sizes[0].width, height: sizes[0].height, name: 'AI 绘图结果' }, point, meta);
-      addItem(item);
+      addItem(selectedFrame ? placeImageInFrame(item, selectedFrame) : item);
       return;
     }
     const { columns, rows } = resultGrid(urls.length);
-    const cell = 238;
-    const gap = 10;
-    const padding = 14;
+    const gap = 8;
+    const padding = 10;
     const header = 38;
+    const groupWidth = selectedFrame ? selectedFrame.width - 28 : columns * 238 + (columns - 1) * gap + padding * 2;
+    const groupHeight = selectedFrame ? selectedFrame.height - 80 : header + rows * 238 + (rows - 1) * gap + padding * 2;
+    const cellWidth = (groupWidth - padding * 2 - (columns - 1) * gap) / columns;
+    const cellHeight = (groupHeight - header - padding * 2 - (rows - 1) * gap) / rows;
     const images = urls.map((url, index): CanvasImageData => {
       const source = sizes[index];
-      const scale = Math.min((cell - 12) / source.width, (cell - 12) / source.height);
-      const width = Math.max(60, source.width * scale);
-      const height = Math.max(60, source.height * scale);
+      const width = Math.max(32, cellWidth - 8);
+      const height = Math.max(32, cellHeight - 8);
       const column = index % columns;
       const row = Math.floor(index / columns);
       return {
         id: canvasId('image'), url, previewUrl: url, name: `生成结果 ${index + 1}`,
         naturalWidth: source.width, naturalHeight: source.height,
-        x: padding + column * (cell + gap) + (cell - width) / 2,
-        y: header + padding + row * (cell + gap) + (cell - height) / 2,
+        x: padding + column * (cellWidth + gap) + 4,
+        y: header + padding + row * (cellHeight + gap) + 4,
         width, height, ...meta,
       };
     });
     const group: CanvasImageGroupItem = {
-      id: canvasId('group'), type: 'image-group', x: point.x, y: point.y,
-      width: padding * 2 + columns * cell + (columns - 1) * gap,
-      height: header + padding * 2 + rows * cell + (rows - 1) * gap,
-      rotation: 0, opacity: 1, name: `AI 绘图 · ${urls.length} 张`, columns, gap, padding, images,
+      id: canvasId('group'), type: 'image-group',
+      x: selectedFrame ? selectedFrame.x + 14 : point.x,
+      y: selectedFrame ? selectedFrame.y + 64 : point.y,
+      width: groupWidth,
+      height: groupHeight,
+      rotation: 0,
+      opacity: 1,
+      frameId: selectedFrame?.id,
+      spaceId: selectedFrame?.spaceId,
+      name: `候选池 · ${urls.length} 张`,
+      columns,
+      gap,
+      padding,
+      images,
+      featuredImageId: images[0]?.id,
     };
     addItem(group);
-  }, [addItem]);
+  }, [addItem, selectedFrame]);
 
   const generate = async () => {
     if (!prompt.trim() || !selectedModel || props.running) return;
@@ -564,8 +782,15 @@ const CanvasStage = forwardRef<CanvasStageHandle, CanvasStageProps>(function Can
 
   const deleteSelected = useCallback(() => {
     if (!selectedIds.length) return;
-    const selected = new Set(selectedIds);
-    commit((current) => ({ ...current, items: current.items.filter((item) => !selected.has(item.id)) }));
+    commit((current) => {
+      const selected = new Set(selectedIds);
+      for (const id of selectedIds) {
+        const item = current.items.find((entry) => entry.id === id);
+        if (item?.type === 'space') current.items.filter((entry) => entry.spaceId === item.id).forEach((entry) => selected.add(entry.id));
+        if (item?.type === 'frame') current.items.filter((entry) => entry.frameId === item.id).forEach((entry) => selected.add(entry.id));
+      }
+      return { ...current, items: current.items.filter((item) => !selected.has(item.id)) };
+    });
     setSelectedIds([]);
   }, [commit, selectedIds]);
 
@@ -644,17 +869,25 @@ const CanvasStage = forwardRef<CanvasStageHandle, CanvasStageProps>(function Can
         onWheel={handleWheel}
       >
         <Layer>
-          {renderedItems.filter((item) => item.type === 'frame').map((item) => (
-            <CanvasItemView key={item.id} item={item} selected={selectedIds.includes(item.id)} onSelect={selectItem} onMove={moveItem} onEditText={beginTextEdit} />
+          {relationships.map((relationship) => {
+            const middleX = relationship.from.x + (relationship.to.x - relationship.from.x) / 2;
+            return <KonvaArrow key={relationship.id} points={[relationship.from.x, relationship.from.y, middleX, relationship.from.y, middleX, relationship.to.y, relationship.to.x, relationship.to.y]} tension={0.35} stroke="#d59ab3" fill="#d59ab3" strokeWidth={2 / camera.zoom} dash={[7 / camera.zoom, 6 / camera.zoom]} pointerLength={7 / camera.zoom} pointerWidth={6 / camera.zoom} listening={false} />;
+          })}
+          {renderedItems.filter((item) => item.type === 'space').map((item) => (
+            <CanvasItemView key={item.id} item={item} selected={selectedIds.includes(item.id)} contentCount={0} spaceProgress={spaceProgress.get(item.id)} onSelect={selectItem} onMove={moveItem} onEditText={beginTextEdit} onCandidateSelect={selectCandidate} />
           ))}
-          {renderedItems.filter((item) => item.type !== 'frame').map((item) => (
-            <CanvasItemView key={item.id} item={item} selected={selectedIds.includes(item.id)} onSelect={selectItem} onMove={moveItem} onEditText={beginTextEdit} />
+          {renderedItems.filter((item) => item.type === 'frame').map((item) => (
+            <CanvasItemView key={item.id} item={item} selected={selectedIds.includes(item.id)} contentCount={contentCounts.get(item.id) || 0} onSelect={selectItem} onMove={moveItem} onEditText={beginTextEdit} onCandidateSelect={selectCandidate} />
+          ))}
+          {renderedItems.filter((item) => item.type !== 'space' && item.type !== 'frame').map((item) => (
+            <CanvasItemView key={item.id} item={item} selected={selectedIds.includes(item.id)} contentCount={0} onSelect={selectItem} onMove={moveItem} onEditText={beginTextEdit} onCandidateSelect={selectCandidate} />
           ))}
           {drawingPoints.length >= 4 && <Line points={drawingPoints} stroke="#f06f9e" strokeWidth={3 / camera.zoom} lineCap="round" lineJoin="round" tension={0.35} listening={false} />}
           {marqueeRect && <Rect {...marqueeRect} fill="rgba(132,102,200,0.08)" stroke="#8466c8" strokeWidth={1 / camera.zoom} dash={[5 / camera.zoom, 4 / camera.zoom]} listening={false} />}
           <Transformer
             ref={transformerRef}
-            rotateEnabled={selectedIds.length === 1}
+            rotateEnabled={selectedIds.length === 1 && !selectedItems.some((item) => item.type === 'space' || item.type === 'frame')}
+            resizeEnabled={!selectedSpace && !selectedItems.some((item) => item.type === 'frame' && (item.spaceId || (contentCounts.get(item.id) || 0) > 0))}
             flipEnabled={false}
             keepRatio={selectedItems.every((item) => item.type === 'image' || item.type === 'image-group')}
             borderStroke="#8466c8"
@@ -670,14 +903,19 @@ const CanvasStage = forwardRef<CanvasStageHandle, CanvasStageProps>(function Can
         <div className="fc-empty-state"><span><ImagePlus size={24} /></span><strong>把图片放到画布上</strong><small>拖放、粘贴或从左侧素材中添加</small></div>
       )}
 
-      {toolbar && references.length > 0 && (
+      {toolbar && (primary || selectedGroup) && (
         <div className="fc-selection-toolbar" style={{ left: toolbar.left, top: toolbar.top }}>
-          <button type="button" title="查看原图" onClick={() => props.onOpenImage(primary.url)}><Eye size={16} /></button>
-          <button type="button" title="标记修改区域" onClick={() => props.onEditMask(primary)} className={primary.maskUrl ? 'active' : ''}><Paintbrush size={16} /></button>
-          <button type="button" title="切分为四张" disabled={props.running} onClick={() => void split()}><Scissors size={16} /></button>
-          <button type="button" title="下载原图" onClick={() => void downloadImage(primary.url).catch((reason) => props.onError(reason.message))}><Download size={16} /></button>
-          {selectedItems.some((item) => item.type === 'image-group') && <button type="button" title="拆开图片组" onClick={ungroupSelected}><Ungroup size={16} /></button>}
-          <span>{references.length > 1 ? `${references.length} 张参考图` : primary.maskUrl ? '已标记区域' : '图片'}</span>
+          {primary && <button type="button" title="查看原图" onClick={() => props.onOpenImage(primary.url)}><Eye size={16} /></button>}
+          {primary && <button type="button" title="标记修改区域" onClick={() => props.onEditMask(primary)} className={primary.maskUrl ? 'active' : ''}><Paintbrush size={16} /></button>}
+          {primary && <button type="button" title="切分为四张" disabled={props.running} onClick={() => void split()}><Scissors size={16} /></button>}
+          {primary && <button type="button" title="下载原图" onClick={() => void downloadImage(primary.url).catch((reason) => props.onError(reason.message))}><Download size={16} /></button>}
+          {selectedGroup && <button type="button" title="将主候选拆为作品" onClick={promoteFeatured}><Star size={16} /></button>}
+          {selectedGroup && <button type="button" title={selectedGroup.collapsed ? '展开候选池' : '收起候选池'} onClick={toggleCandidatePool}>{selectedGroup.collapsed ? <PanelTopOpen size={16} /> : <PanelTopClose size={16} />}</button>}
+          {selectedGroup && <button type="button" title="全部拆到画布" onClick={ungroupSelected}><Ungroup size={16} /></button>}
+          <span>
+            {relationships.length > 0 && <GitBranch size={13} />}
+            {references.length > 1 ? `${references.length} 张参考图` : primary?.maskUrl ? '已标记区域' : selectedGroup ? '候选池' : '图片'}
+          </span>
         </div>
       )}
 
@@ -703,6 +941,9 @@ const CanvasStage = forwardRef<CanvasStageHandle, CanvasStageProps>(function Can
       )}
 
       <div className="fc-composer" data-canvas-overlay>
+        {selectedFrame && (
+          <div className="fc-target-strip"><Target size={14} /><strong>{selectedFrame.name}</strong><span>{selectedFrame.brief}</span><b>{selectedFrame.aspectRatio}</b></div>
+        )}
         {references.length > 0 && (
           <div className="fc-reference-strip">
             {references.map((reference, index) => (
@@ -719,7 +960,7 @@ const CanvasStage = forwardRef<CanvasStageHandle, CanvasStageProps>(function Can
             onKeyDown={(event) => {
               if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); void generate(); }
             }}
-            placeholder={references.length ? '描述怎样修改或融合这些图片' : '描述准备创作的画面'}
+            placeholder={selectedFrame ? `描述「${selectedFrame.name}」的画面` : references.length ? '描述怎样修改或融合这些图片' : '描述准备创作的画面'}
             rows={1}
           />
           <button className="fc-generate" type="button" disabled={!prompt.trim() || !selectedModel || props.running} onClick={() => void generate()}>

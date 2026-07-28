@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { mergeCanvasDocuments, migrateCanvasDocument, selectedImageData, visibleCanvasItems, type CanvasItem } from '../freeCanvas/canvasDocument';
+import {
+  availableCanvasSpaceCenter,
+  canvasRelationships,
+  createCanvasSpace,
+  mergeCanvasDocuments,
+  migrateCanvasDocument,
+  selectedImageData,
+  visibleCanvasItems,
+  type CanvasItem,
+} from '../freeCanvas/canvasDocument';
 
 describe('free canvas document', () => {
   it('keeps the current document format unchanged', () => {
@@ -71,5 +80,39 @@ describe('free canvas document', () => {
     const merged = mergeCanvasDocuments(base, local, remote);
     expect(merged.items.map((entry) => entry.id)).toEqual(['shared', 'remote', 'local']);
     expect(merged.items.find((entry) => entry.id === 'shared')).toMatchObject({ text: '本页修改' });
+  });
+
+  it('creates a mixed-layout product space with linked target frames', () => {
+    const created = createCanvasSpace('product', { x: 1000, y: 800 });
+    expect(created.frames).toHaveLength(5);
+    expect(created.frames.every((frame) => frame.spaceId === created.space.id)).toBe(true);
+    expect(new Set(created.frames.map((frame) => frame.width))).toEqual(new Set([360, 550]));
+    expect(new Set(created.frames.map((frame) => frame.y)).size).toBe(2);
+  });
+
+  it('moves a new creation space away from existing artwork', () => {
+    const existing: CanvasItem = {
+      id: 'existing', type: 'image', x: 0, y: 0, width: 800, height: 800, rotation: 0, opacity: 1,
+      url: 'image.png', previewUrl: 'image.png', name: 'existing', naturalWidth: 800, naturalHeight: 800,
+    };
+    const center = availableCanvasSpaceCenter('product', [existing], { x: 400, y: 400 });
+    expect(center.x).toBeGreaterThan(800);
+  });
+
+  it('places the featured candidate first and reveals only local generation relationships', () => {
+    const source: CanvasItem = {
+      id: 'source', type: 'image', x: 0, y: 0, width: 100, height: 100, rotation: 0, opacity: 1,
+      url: 'source.png', previewUrl: 'source.png', name: 'source', naturalWidth: 100, naturalHeight: 100,
+    };
+    const group: CanvasItem = {
+      id: 'result', type: 'image-group', x: 300, y: 0, width: 220, height: 180, rotation: 0, opacity: 1,
+      name: '候选', columns: 2, gap: 8, padding: 10, featuredImageId: 'two', images: [
+        { id: 'one', url: 'one.png', previewUrl: 'one.png', name: 'one', naturalWidth: 100, naturalHeight: 100, x: 10, y: 40, width: 80, height: 80, referenceIds: ['source'] },
+        { id: 'two', url: 'two.png', previewUrl: 'two.png', name: 'two', naturalWidth: 100, naturalHeight: 100, x: 100, y: 40, width: 80, height: 80, referenceIds: ['source'] },
+      ],
+    };
+    const document = { version: 2 as const, items: [source, group] };
+    expect(selectedImageData(document, ['result']).map((image) => image.id)).toEqual(['two', 'one']);
+    expect(canvasRelationships(document, ['result'])).toHaveLength(1);
   });
 });

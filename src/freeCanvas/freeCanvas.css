@@ -169,6 +169,9 @@
 }
 .fc-plan:hover { border-color: #d8cde8; background: #fdfcff; }
 .fc-plan > span { grid-row: 1 / 3; width: 38px; height: 38px; display: grid; place-items: center; border-radius: 7px; background: var(--fc-pink-soft); color: var(--fc-pink); }
+.fc-plan.accent-violet > span { background: var(--fc-violet-soft); color: var(--fc-violet); }
+.fc-plan.accent-mint > span { background: var(--fc-mint-soft); color: var(--fc-mint); }
+.fc-plan.accent-blue > span { background: var(--fc-blue-soft); color: var(--fc-blue); }
 .fc-plan strong { font-size: 12px; }
 .fc-plan small { overflow: hidden; color: var(--fc-muted); font-size: 10px; line-height: 1.4; text-overflow: ellipsis; white-space: nowrap; }
 
@@ -259,7 +262,8 @@
 .fc-selection-toolbar button:hover,
 .fc-selection-toolbar button.active { background: var(--fc-pink-soft); color: var(--fc-pink); }
 .fc-selection-toolbar button:disabled { opacity: 0.4; cursor: wait; }
-.fc-selection-toolbar span { padding: 0 8px 0 5px; color: var(--fc-muted); font-size: 10px; white-space: nowrap; }
+.fc-selection-toolbar span { display: flex; align-items: center; gap: 5px; padding: 0 8px 0 5px; color: var(--fc-muted); font-size: 10px; white-space: nowrap; }
+.fc-selection-toolbar span svg { color: var(--fc-pink); }
 
 .fc-composer {
   position: absolute;
@@ -280,6 +284,11 @@
 .fc-reference-strip img { width: 100%; height: 100%; display: block; object-fit: cover; }
 .fc-reference-strip b { position: absolute; right: 0; bottom: 0; padding: 1px 3px; background: var(--fc-violet); color: #fff; font-size: 7px; font-weight: 600; }
 .fc-reference-strip small { color: var(--fc-muted); font-size: 10px; white-space: nowrap; }
+.fc-target-strip { min-height: 36px; display: flex; align-items: center; gap: 7px; padding: 7px 11px; border-bottom: 1px solid #eeeaf2; background: #fdf9fc; color: #756b79; font-size: 10px; }
+.fc-target-strip > svg { flex: 0 0 auto; color: var(--fc-pink); }
+.fc-target-strip strong { color: #a6496b; font-size: 11px; }
+.fc-target-strip span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fc-target-strip b { margin-left: auto; padding: 3px 6px; border-radius: 5px; background: #fff0f5; color: #a6496b; font-size: 9px; }
 .fc-composer-main { min-height: 56px; display: flex; align-items: center; gap: 9px; padding: 8px 9px 5px 12px; }
 .fc-composer-main > svg { flex: 0 0 auto; color: var(--fc-pink); }
 .fc-composer textarea { min-width: 0; height: 36px; flex: 1; resize: none; padding: 8px 2px; border: 0; background: transparent; color: var(--fc-ink); font: inherit; font-size: 13px; line-height: 20px; outline: none; }

@@ -4,6 +4,7 @@ import {
   Archive,
   Brush,
   ChevronLeft,
+  Clapperboard,
   FolderOpen,
   Frame,
   ImagePlus,
@@ -12,6 +13,8 @@ import {
   LogOut,
   Maximize,
   MousePointer2,
+  Package,
+  Palette,
   Plus,
   Redo2,
   RefreshCw,
@@ -19,6 +22,7 @@ import {
   Sparkles,
   Type,
   Undo2,
+  UserRound,
   X,
 } from 'lucide-react';
 import { useAuth } from '../AuthContext';
@@ -32,7 +36,7 @@ import CanvasStage, {
   type CanvasStageHandle,
 } from './CanvasStage';
 import { buildImageRunGraph, imageUrlsFromRun, type ImageReference, type ImageRunRequest } from './canvasHelpers';
-import { mergeCanvasDocuments } from './canvasDocument';
+import { mergeCanvasDocuments, type CanvasSpacePresetId } from './canvasDocument';
 
 type PanelId = 'add' | 'assets' | 'plans' | 'runs' | 'projects';
 
@@ -45,9 +49,10 @@ const PANELS = [
 ];
 
 const PLAN_ITEMS = [
-  { id: 'product', name: '商品套图', detail: '主图、场景、细节、功能与氛围图', frames: ['主图', '场景图', '细节图', '功能图', '氛围图'] },
-  { id: 'inspiration', name: '灵感板', detail: '集中整理风格、配色与构图参考', frames: ['灵感素材', '候选方案', '最终方向'] },
-  { id: 'storyboard', name: '分镜画板', detail: '按镜头顺序组织横向画面', frames: ['镜头 01', '镜头 02', '镜头 03', '镜头 04'] },
+  { id: 'product' as CanvasSpacePresetId, name: '商品视觉套图', detail: '5 个目标画板 · 混合版式', icon: Package, accent: 'pink' },
+  { id: 'character' as CanvasSpacePresetId, name: '角色设定集', detail: '主设、表情、服装与动作', icon: UserRound, accent: 'violet' },
+  { id: 'inspiration' as CanvasSpacePresetId, name: '视觉灵感板', detail: '素材、探索与最终方向', icon: Palette, accent: 'mint' },
+  { id: 'storyboard' as CanvasSpacePresetId, name: '分镜叙事', detail: '4 个横向镜头画板', icon: Clapperboard, accent: 'blue' },
 ];
 
 function dataUrlFile(dataUrl: string, name: string) {
@@ -355,11 +360,26 @@ export default function FreeCanvasWorkspace() {
               </>
             )}
 
-            {panel === 'plans' && PLAN_ITEMS.map((item) => (
-              <button className="fc-plan" type="button" key={item.id} onClick={() => stageRef.current?.addFrames(item.frames)}>
-                <span><LayoutTemplate size={18} /></span><strong>{item.name}</strong><small>{item.detail}</small>
-              </button>
-            ))}
+            {panel === 'plans' && (
+              <div className="fc-plan-list">
+                {PLAN_ITEMS.map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <button
+                      className={`fc-plan accent-${item.accent}`}
+                      type="button"
+                      key={item.id}
+                      onClick={() => {
+                        stageRef.current?.createSpace(item.id);
+                        setPanelOpen(false);
+                      }}
+                    >
+                      <span><Icon size={18} /></span><strong>{item.name}</strong><small>{item.detail}</small>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
 
             {panel === 'runs' && (
               <div className="fc-run-list">
