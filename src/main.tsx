@@ -1,5 +1,6 @@
-import React, { lazy, Suspense, useEffect } from 'react';
+import React, { lazy, Suspense } from 'react';
 import ReactDOM from 'react-dom/client';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import App from './App';
 import { AuthProvider } from './AuthContext';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -9,24 +10,22 @@ import './styles.css';
 const AdminLayout = lazy(() => import('./admin/AdminLayout').then((module) => ({ default: module.AdminLayout })));
 
 function AdminGuard() {
-  const allowed = Boolean(getToken() && isAdmin());
-  useEffect(() => {
-    if (!allowed) window.location.replace('/');
-  }, [allowed]);
-  return allowed ? <AdminLayout /> : null;
-}
-
-function RootRoute() {
-  return window.location.pathname.startsWith('/admin') ? <AdminGuard /> : <App />;
+  if (!getToken() || !isAdmin()) return <Navigate to="/" replace />;
+  return <AdminLayout />;
 }
 
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
   <React.StrictMode>
     <ErrorBoundary>
       <AuthProvider>
-        <Suspense fallback={<div className="route-loading">加载中...</div>}>
-          <RootRoute />
-        </Suspense>
+        <BrowserRouter>
+          <Suspense fallback={<div className="route-loading">加载中...</div>}>
+            <Routes>
+              <Route path="/admin/*" element={<AdminGuard />} />
+              <Route path="*" element={<App />} />
+            </Routes>
+          </Suspense>
+        </BrowserRouter>
       </AuthProvider>
     </ErrorBoundary>
   </React.StrictMode>,

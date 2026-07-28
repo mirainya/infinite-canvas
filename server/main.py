@@ -1,4 +1,3 @@
-import asyncio
 import logging
 import os
 import threading
@@ -15,25 +14,7 @@ from auth import get_current_user, require_admin
 from db import init_db, close_db, get_pool
 from error_handlers import register_error_handlers
 from plugin_loader import load_plugins, reload_plugins, get_all_node_defs, PLUGINS_DIR
-from routers import (
-    admin,
-    auth,
-    canvases,
-    downloads,
-    execute,
-    meta_prompt,
-    models,
-    nodes,
-    prompt_enhance,
-    prompt_templates,
-    templates,
-    v2_assets,
-    v2_admin,
-    v2_projects,
-    v2_runs,
-    v2_templates,
-)
-from v2_worker import run_worker
+from routers import nodes, execute, meta_prompt, auth, admin, templates, models, canvases, downloads, prompt_enhance, prompt_templates
 import account_center
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -68,13 +49,11 @@ class _PluginFileHandler(FileSystemEventHandler):
 
 
 _observer: Observer | None = None
-_worker_stop: asyncio.Event | None = None
-_worker_task: asyncio.Task | None = None
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global _observer, _worker_stop, _worker_task
+    global _observer
     if not account_center.enabled():
         raise RuntimeError("账号中心配置不完整，请设置 AC_BASE_URL/AC_CLIENT_ID/AC_CLIENT_SECRET")
     await init_db()
@@ -88,22 +67,10 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning("恢复遗留任务失败: %s", e)
 
-    app_env = os.environ.get("APP_ENV", "development").lower()
-    hot_reload = os.environ.get(
-        "PLUGIN_HOT_RELOAD", "true" if app_env == "development" else "false"
-    ).lower() == "true"
-    if hot_reload:
-        _observer = Observer()
-        _observer.schedule(_PluginFileHandler(), PLUGINS_DIR, recursive=False)
-        _observer.start()
-        logger.info("插件开发热加载已启用: %s", PLUGINS_DIR)
-
-    embedded_worker = os.environ.get(
-        "V2_EMBEDDED_WORKER", "true" if app_env == "development" else "false"
-    ).lower() == "true"
-    if embedded_worker:
-        _worker_stop = asyncio.Event()
-        _worker_task = asyncio.create_task(run_worker(_worker_stop), name="v2-worker")
+    _observer = Observer()
+    _observer.schedule(_PluginFileHandler(), PLUGINS_DIR, recursive=False)
+    _observer.start()
+    logger.info("插件热加载已启用，监听: %s", PLUGINS_DIR)
 
     logger.info("Infinite Canvas 后端已启动 (port %d)", PORT)
     yield
@@ -111,12 +78,6 @@ async def lifespan(app: FastAPI):
     if _observer:
         _observer.stop()
         _observer.join()
-        _observer = None
-    if _worker_stop and _worker_task:
-        _worker_stop.set()
-        await _worker_task
-        _worker_stop = None
-        _worker_task = None
     await close_db()
 
 
@@ -147,11 +108,6 @@ app.include_router(canvases.router)
 app.include_router(downloads.router)
 app.include_router(prompt_enhance.router)
 app.include_router(prompt_templates.router)
-app.include_router(v2_projects.router)
-app.include_router(v2_assets.router)
-app.include_router(v2_templates.router)
-app.include_router(v2_runs.router)
-app.include_router(v2_admin.router)
 
 
 @app.get("/api/health")

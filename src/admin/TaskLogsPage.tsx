@@ -13,40 +13,20 @@ type TaskLog = {
   created_at: string;
 };
 
-type V2Run = {
-  id: string;
-  owner_id: number;
-  project_name: string;
-  status: string;
-  progress: number;
-  credits_used: number;
-  error: string;
-  created_at: string;
-};
-
 const STATUS_MAP: Record<string, { label: string; cls: string }> = {
   pending: { label: '进行中', cls: 'admin__status--pending' },
-  queued: { label: '排队中', cls: 'admin__status--pending' },
-  running: { label: '执行中', cls: 'admin__status--pending' },
   success: { label: '成功', cls: 'admin__status--ok' },
-  succeeded: { label: '已完成', cls: 'admin__status--ok' },
   failed: { label: '失败', cls: 'admin__status--err' },
-  cancelled: { label: '已取消', cls: '' },
 };
 
 export function TaskLogsPage() {
   const [logs, setLogs] = useState<TaskLog[]>([]);
-  const [runs, setRuns] = useState<V2Run[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchLogs = useCallback(async () => {
     try {
-      const [legacyResponse, runResponse] = await Promise.all([
-        apiFetch('/api/task-logs?limit=100'),
-        apiFetch('/api/v2/admin/runs'),
-      ]);
-      if (legacyResponse.ok) setLogs(await legacyResponse.json());
-      if (runResponse.ok) setRuns(await runResponse.json());
+      const res = await apiFetch('/api/task-logs?limit=100');
+      if (res.ok) setLogs(await res.json());
     } finally {
       setLoading(false);
     }
@@ -64,31 +44,13 @@ export function TaskLogsPage() {
   return (
     <div>
       <div className="admin__header">
-        <h1 className="admin__title">任务记录</h1>
+        <h1 className="admin__title">任务日志</h1>
         <button type="button" className="admin__btn" onClick={fetchLogs}>刷新</button>
       </div>
 
-      {runs.length > 0 && <div className="admin__table-wrap" style={{ marginBottom: 24 }}>
-        <table className="admin__table">
-          <thead><tr><th>时间</th><th>项目</th><th>账号</th><th>状态</th><th>进度</th><th>积分</th><th>错误</th></tr></thead>
-          <tbody>{runs.map((run) => {
-            const status = STATUS_MAP[run.status] ?? { label: run.status, cls: '' };
-            return <tr key={run.id}>
-              <td style={{ whiteSpace: 'nowrap', fontSize: 12 }}>{new Date(run.created_at).toLocaleString('zh-CN')}</td>
-              <td>{run.project_name}</td>
-              <td><code>{run.owner_id}</code></td>
-              <td><span className={`admin__status ${status.cls}`}>{status.label}</span></td>
-              <td>{run.progress}%</td>
-              <td>{run.credits_used}</td>
-              <td className="admin__prompt-cell" title={run.error}>{run.error || '-'}</td>
-            </tr>;
-          })}</tbody>
-        </table>
-      </div>}
-
-      {logs.length === 0 && runs.length === 0 ? (
+      {logs.length === 0 ? (
         <div className="admin__empty">暂无任务记录</div>
-      ) : logs.length > 0 && (
+      ) : (
         <div className="admin__table-wrap">
         <table className="admin__table">
           <thead>

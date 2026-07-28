@@ -3,12 +3,10 @@ import { apiFetch } from '../api';
 
 type HealthData = { status: string; name: string };
 type PluginSummary = { def_id: string; name: string };
-type V2Overview = { projects: number; assets: number; runs: number; running: number; credits_used: number };
 
 export function DashboardPage() {
   const [health, setHealth] = useState<HealthData | null>(null);
   const [plugins, setPlugins] = useState<PluginSummary[]>([]);
-  const [overview, setOverview] = useState<V2Overview | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -17,12 +15,10 @@ export function DashboardPage() {
     Promise.all([
       fetch('/api/health').then(asJson),
       apiFetch('/api/plugins').then(asArr),
-      apiFetch('/api/v2/admin/overview').then(asJson),
     ])
-      .then(([hd, p, v2]) => {
+      .then(([hd, p]) => {
         setHealth(hd);
         setPlugins(Array.isArray(p) ? p : []);
-        setOverview(v2);
       })
       .catch(() => { /* ignore */ })
       .finally(() => setLoading(false));
@@ -41,22 +37,6 @@ export function DashboardPage() {
         <div className="admin__card">
           <div className="admin__card-value">{plugins.length}</div>
           <div className="admin__card-label">已加载插件</div>
-        </div>
-        <div className="admin__card">
-          <div className="admin__card-value">{overview?.projects ?? 0}</div>
-          <div className="admin__card-label">V2 项目</div>
-        </div>
-        <div className="admin__card">
-          <div className="admin__card-value">{overview?.runs ?? 0}</div>
-          <div className="admin__card-label">V2 任务</div>
-        </div>
-        <div className="admin__card">
-          <div className="admin__card-value">{overview?.running ?? 0}</div>
-          <div className="admin__card-label">执行中</div>
-        </div>
-        <div className="admin__card">
-          <div className="admin__card-value">{overview?.credits_used ?? 0}</div>
-          <div className="admin__card-label">已用积分</div>
         </div>
       </div>
     </div>

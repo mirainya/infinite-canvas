@@ -386,8 +386,8 @@ export default function ImageEditor({ imageSrc, nodeId: _nodeId, ctx, maskOnly, 
 
   /* close & return result */
   const handleClose = useCallback(() => {
-    onClose(maskOnly ? undefined : currentImage);
-  }, [onClose, maskOnly, currentImage]);
+    onClose(currentImage);
+  }, [onClose, currentImage]);
 
   const confirmMask = useCallback(() => {
     const mask = generateMask();
@@ -502,18 +502,19 @@ export default function ImageEditor({ imageSrc, nodeId: _nodeId, ctx, maskOnly, 
       <div className="image-editor__actions">
         {maskOnly ? (
           <div className="image-editor__prompt-area">
-            <span className="image-editor__mask-hint">在原图上标记需要修改的区域</span>
+            <span style={{ color: '#aaa', fontSize: 12 }}>在底图上标记素材放置区域（白色=放置区域）</span>
             <button
               type="button"
               className="image-editor__execute"
               disabled={!hasSelection}
               onClick={confirmMask}
             >
-              完成
+              确认区域
             </button>
             <button
               type="button"
-              className="image-editor__preview-button"
+              className="image-editor__execute"
+              style={{ marginLeft: 4, background: '#555', fontSize: 12 }}
               disabled={!hasSelection}
               onClick={() => { const m = generateMask(); setMaskPreview(m); }}
             >
@@ -571,12 +572,17 @@ export default function ImageEditor({ imageSrc, nodeId: _nodeId, ctx, maskOnly, 
             }}
             onClick={() => setMaskPreview(null)}
           >
-            <div style={{ color: '#fff', fontSize: 14 }}>蒙版预览（白色为修改区域）</div>
+            <div style={{ color: '#fff', fontSize: 14 }}>
+              Mask 预览（黑=保留 白=编辑区域）— 点击关闭
+            </div>
             <img
               src={maskPreview}
               alt="mask preview"
               style={{ maxWidth: '80vw', maxHeight: '70vh', border: '2px solid #fff', imageRendering: 'pixelated' }}
             />
+            <div style={{ color: '#aaa', fontSize: 12 }}>
+              原图尺寸: {imgSize.w}×{imgSize.h} | Canvas: {canvasRect.w}×{canvasRect.h} | Scale: {display.scale.toFixed(3)} | Offset: ({display.ox.toFixed(1)}, {display.oy.toFixed(1)})
+            </div>
           </div>
         )}
 
