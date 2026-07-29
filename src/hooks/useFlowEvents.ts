@@ -1,4 +1,4 @@
-import { useCallback, type Dispatch, type RefObject, type SetStateAction } from 'react';
+import { useCallback, useRef, type Dispatch, type RefObject, type SetStateAction } from 'react';
 import { addEdge, type Connection, type Edge, type Node, type NodeChange, type EdgeChange } from 'reactflow';
 import { getNodeDef } from '../nodes';
 import type { CanvasNodeData } from '../types';
@@ -29,6 +29,8 @@ export function useFlowEvents(
   setStatus?: (status: string) => void,
   nodesRef?: RefObject<Node<CanvasNodeData>[]>,
 ) {
+  const resizingRef = useRef(false);
+
   const onConnect = useCallback(
     (connection: Connection) => {
       if (nodesRef?.current && connection.sourceHandle && connection.targetHandle) {
@@ -66,9 +68,11 @@ export function useFlowEvents(
   const onNodesChange = useCallback(
     (changes: NodeChange[]) => {
       const hasRemove = changes.some((c) => c.type === 'remove');
-      const hasDragEnd = changes.some((c) => c.type === 'position' && !c.dragging && c.position);
+      const hasResizeStart = changes.some((c) => c.type === 'dimensions' && c.resizing === true);
       const hasResizeEnd = changes.some((c) => c.type === 'dimensions' && c.resizing === false);
-      if (hasRemove || hasDragEnd || hasResizeEnd) rememberHistory();
+      if (hasRemove || (hasResizeStart && !resizingRef.current)) rememberHistory();
+      if (hasResizeStart) resizingRef.current = true;
+      if (hasResizeEnd) resizingRef.current = false;
 
       onNodesChangeBase(changes);
     },

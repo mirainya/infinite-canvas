@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import type { Node } from 'reactflow';
 import { getNodeDef } from '../nodes';
+import { getSpatialParentMap } from '../spatialGroups';
 import type { CanvasNodeData } from '../types';
 
 type ManagerFilter = 'all' | 'nodes' | 'groups' | 'hidden';
@@ -19,28 +20,34 @@ const PAGE_SIZE = 50;
 
 const isLocked = (node: Node<CanvasNodeData>) => node.data.locked === true || node.draggable === false;
 
-function orderManagedNodes(nodes: Node<CanvasNodeData>[]) {
+function orderManagedNodes(
+  nodes: Node<CanvasNodeData>[],
+  parentById: Map<string, Node<CanvasNodeData>>,
+) {
   const childMap = new Map<string, Node<CanvasNodeData>[]>();
   const roots: Node<CanvasNodeData>[] = [];
 
   for (const node of nodes) {
-    if (node.parentNode) {
-      const siblings = childMap.get(node.parentNode) ?? [];
+    const parent = parentById.get(node.id);
+    if (parent) {
+      const siblings = childMap.get(parent.id) ?? [];
       siblings.push(node);
-      childMap.set(node.parentNode, siblings);
+      childMap.set(parent.id, siblings);
     } else {
       roots.push(node);
     }
   }
 
   const ordered: Node<CanvasNodeData>[] = [];
-  for (const root of roots) {
-    ordered.push(root);
-    if (root.type === 'groupNode') ordered.push(...(childMap.get(root.id) ?? []));
-  }
-
-  const included = new Set(ordered.map((node) => node.id));
-  ordered.push(...nodes.filter((node) => !included.has(node.id)));
+  const included = new Set<string>();
+  const append = (node: Node<CanvasNodeData>) => {
+    if (included.has(node.id)) return;
+    included.add(node.id);
+    ordered.push(node);
+    (childMap.get(node.id) ?? []).forEach(append);
+  };
+  roots.forEach(append);
+  nodes.forEach(append);
   return ordered;
 }
 
@@ -59,9 +66,10 @@ export default function NodeManagerPanel({
   const [limit, setLimit] = useState(PAGE_SIZE);
 
   const nodeById = useMemo(() => new Map(nodes.map((node) => [node.id, node])), [nodes]);
+  const parentById = useMemo(() => getSpatialParentMap(nodes), [nodes]);
   const filteredNodes = useMemo(() => {
     const normalized = query.trim().toLowerCase();
-    return orderManagedNodes(nodes).filter((node) => {
+    return orderManagedNodes(nodes, parentById).filter((node) => {
       if (filter === 'nodes' && node.type === 'groupNode') return false;
       if (filter === 'groups' && node.type !== 'groupNode') return false;
       if (filter === 'hidden' && !node.hidden) return false;
@@ -72,7 +80,7 @@ export default function NodeManagerPanel({
         .filter(Boolean)
         .some((value) => String(value).toLowerCase().includes(normalized));
     });
-  }, [filter, nodes, query]);
+  }, [filter, nodes, parentById, query]);
 
   const displayedNodes = filteredNodes.slice(0, limit);
   const selected = Array.from(selectedIds).filter((id) => nodeById.has(id));
@@ -180,14 +188,14 @@ export default function NodeManagerPanel({
         <div className="panel-node-manager__list">
           {displayedNodes.map((node) => {
             const definition = node.data.defId ? getNodeDef(node.data.defId) : undefined;
-            const parent = node.parentNode ? nodeById.get(node.parentNode) : undefined;
+            const parent = parentById.get(node.id);
             const locked = isLocked(node);
             const title = node.data.title || definition?.name || '未命名节点';
             const type = node.type === 'groupNode' ? '分组' : definition?.category ?? '节点';
             return (
               <div
                 key={node.id}
-                className={`panel-node-manager__item ${node.parentNode ? 'panel-node-manager__item--child' : ''} ${node.hidden ? 'panel-node-manager__item--hidden' : ''}`}
+                className={`panel-node-manager__item ${parent ? 'panel-node-manager__item--child' : ''} ${node.hidden ? 'panel-node-manager__item--hidden' : ''}`}
               >
                 <input
                   type="checkbox"

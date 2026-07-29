@@ -112,7 +112,7 @@ function CanvasContextMenu({
               onClose();
             }}
           >
-            新建分组区域
+            新建空间分组
           </button>
         </>
       )}

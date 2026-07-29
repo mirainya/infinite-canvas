@@ -147,7 +147,7 @@ export function NodeLibraryPanel({ onAddNode, onAddGroup }: {
           <span className="panel-templates__group-icon" aria-hidden="true" />
           <span className="panel-templates__item-copy">
             <strong>分组区域</strong>
-            <small>创作分区</small>
+            <small>空间分区</small>
           </span>
         </button>
       </div>

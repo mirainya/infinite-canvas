@@ -10,6 +10,8 @@ import { getAutoGroupPosition, getAutoNodePosition } from '../hooks/useNodeCreat
 import { hasConnectedOutputNode } from '../hooks/useDataFlow';
 import { useNodeSearch } from '../hooks/useNodeSearch';
 import { useGroupActions } from '../hooks/useGroupActions';
+import { useSpatialGroupDrag } from '../hooks/useSpatialGroupDrag';
+import { getSpatialParentGroup, normalizeSpatialNodes } from '../spatialGroups';
 import { layoutNodesByEdges } from '../graphLayout';
 import { nodeRegistry } from '../nodes';
 import type { CanvasNodeData } from '../types';
@@ -70,11 +72,11 @@ describe('workflow UI', () => {
     expect(sourceOrder * targetOrder).toBeGreaterThan(0);
   });
 
-  it('moves a group as one unit while preserving child positions', () => {
+  it('lays out a spatial group as one unit while preserving member offsets', () => {
     const nodes = [
       { id: 'group', type: 'groupNode', position: { x: 0, y: 0 }, style: { width: 480, height: 320 }, data: { title: '分组' } },
       { id: 'child', parentNode: 'group', position: { x: 40, y: 50 }, data: { title: '子节点' } },
-      { id: 'target', position: { x: 0, y: 0 }, width: 240, height: 160, data: { title: '输出' } },
+      { id: 'target', position: { x: 800, y: 0 }, width: 240, height: 160, data: { title: '输出' } },
     ] as Node<CanvasNodeData>[];
 
     const arranged = layoutNodesByEdges(nodes, [{ id: 'edge', source: 'child', target: 'target' }]);
@@ -82,14 +84,15 @@ describe('workflow UI', () => {
     const child = arranged.find((node) => node.id === 'child')!;
     const target = arranged.find((node) => node.id === 'target')!;
 
-    expect(child.position).toEqual({ x: 40, y: 50 });
+    expect(child.position.x - group.position.x).toBe(40);
+    expect(child.position.y - group.position.y).toBe(50);
     expect(target.position.x).toBeGreaterThan(group.position.x);
   });
 
-  it('keeps a group before its children after grouping selected nodes', () => {
+  it('creates a spatial frame around selected nodes without parenting them', () => {
     let nodes = [
-      { id: 'child', selected: true, position: { x: 140, y: 160 }, data: { title: '子节点' } },
-      { id: 'group', type: 'groupNode', selected: true, position: { x: 100, y: 80 }, data: { title: '分组' } },
+      { id: 'first', selected: true, position: { x: 140, y: 160 }, width: 200, height: 120, data: { title: '节点一' } },
+      { id: 'second', selected: true, position: { x: 440, y: 220 }, width: 200, height: 120, data: { title: '节点二' } },
     ] as Node<CanvasNodeData>[];
     const setNodes = vi.fn((update: React.SetStateAction<Node<CanvasNodeData>[]>) => {
       nodes = typeof update === 'function' ? update(nodes) : update;
@@ -103,9 +106,47 @@ describe('workflow UI', () => {
 
     act(() => result.current.groupSelected());
 
-    expect(nodes.map((node) => node.id)).toEqual(['group', 'child']);
-    expect(nodes[1].parentNode).toBe('group');
-    expect(nodes[1].position).toEqual({ x: 40, y: 80 });
+    const group = nodes.find((node) => node.type === 'groupNode')!;
+    expect(nodes[0].id).toBe(group.id);
+    expect(nodes.filter((node) => node.parentNode)).toHaveLength(0);
+    expect(getSpatialParentGroup(nodes, nodes.find((node) => node.id === 'first')!)?.id).toBe(group.id);
+    expect(getSpatialParentGroup(nodes, nodes.find((node) => node.id === 'second')!)?.id).toBe(group.id);
+  });
+
+  it('flattens legacy parent groups without changing absolute positions', () => {
+    const legacy = [
+      { id: 'group', type: 'groupNode', position: { x: 100, y: 80 }, style: { width: 480, height: 320 }, data: { title: '分组' } },
+      { id: 'child', parentNode: 'group', extent: 'parent', position: { x: 40, y: 60 }, data: { title: '子节点' } },
+    ] as Node<CanvasNodeData>[];
+
+    const normalized = normalizeSpatialNodes(legacy);
+    const child = normalized.find((node) => node.id === 'child')!;
+    expect(child.position).toEqual({ x: 140, y: 140 });
+    expect(child.parentNode).toBeUndefined();
+    expect(child.extent).toBeUndefined();
+  });
+
+  it('moves spatial group contents with the group title bar', () => {
+    let nodes = [
+      { id: 'group', type: 'groupNode', position: { x: 100, y: 100 }, style: { width: 480, height: 320 }, data: { title: '分组' } },
+      { id: 'inside', position: { x: 180, y: 190 }, width: 160, height: 100, data: { title: '组内' } },
+      { id: 'outside', position: { x: 800, y: 200 }, width: 160, height: 100, data: { title: '组外' } },
+    ] as Node<CanvasNodeData>[];
+    const setNodes = vi.fn((update: React.SetStateAction<Node<CanvasNodeData>[]>) => {
+      nodes = typeof update === 'function' ? update(nodes) : update;
+    });
+    const { result } = renderHook(() => useSpatialGroupDrag(nodes, setNodes));
+    const group = nodes[0];
+
+    act(() => result.current.onNodeDragStart({} as never, group, [group]));
+    act(() => result.current.onNodeDrag(
+      {} as never,
+      { ...group, position: { x: 160, y: 140 } },
+      [{ ...group, position: { x: 160, y: 140 } }],
+    ));
+
+    expect(nodes.find((node) => node.id === 'inside')?.position).toEqual({ x: 240, y: 230 });
+    expect(nodes.find((node) => node.id === 'outside')?.position).toEqual({ x: 800, y: 200 });
   });
 
   it('packs disconnected nodes into horizontal and vertical rows', () => {
@@ -160,7 +201,7 @@ describe('workflow UI', () => {
   it('filters and manages nodes in batches', () => {
     const nodes = [
       { id: 'group-1', type: 'groupNode', position: { x: 0, y: 0 }, data: { title: '角色分组', prompt: '', result: '' } },
-      { id: 'node-1', parentNode: 'group-1', position: { x: 20, y: 60 }, data: { title: '角色线稿', prompt: '', result: '' } },
+      { id: 'node-1', position: { x: 20, y: 60 }, data: { title: '角色线稿', prompt: '', result: '' } },
     ] as Node<CanvasNodeData>[];
     const onSetHidden = vi.fn();
 

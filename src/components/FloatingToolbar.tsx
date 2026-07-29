@@ -52,8 +52,8 @@ function FloatingToolbar({
             <button type="button" onClick={wrap(onImportProject)}>导入项目包</button>
             <button type="button" onClick={wrap(onSaveToProjects)}>保存到项目列表</button>
             <button type="button" data-action="auto-layout" onClick={wrap(onAutoLayout)}>自动排列节点</button>
-            <button type="button" onClick={wrap(onGroup)}>加入分组</button>
-            <button type="button" onClick={wrap(onUngroup)}>移出分组</button>
+            <button type="button" onClick={wrap(onGroup)}>创建或适配分组</button>
+            <button type="button" onClick={wrap(onUngroup)}>移除分组框</button>
             <button type="button" onClick={wrap(onDuplicate)}>复制所选</button>
             <button type="button" onClick={wrap(onDelete)}>删除所选</button>
             <button type="button" onClick={wrap(onClear)}>清空画布</button>

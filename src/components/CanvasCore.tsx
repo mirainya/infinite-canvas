@@ -14,6 +14,7 @@ import ReactFlow, {
   MiniMap,
   type Edge,
   type Node,
+  type NodeDragHandler,
   type ReactFlowInstance,
   useEdgesState,
   useNodesState,
@@ -28,7 +29,9 @@ import { useCanvasHistory } from '../hooks/useCanvasHistory';
 import { useDataFlow } from '../hooks/useDataFlow';
 import { useFlowEvents } from '../hooks/useFlowEvents';
 import { useSnapAlign } from '../hooks/useSnapAlign';
+import { useSpatialGroupDrag } from '../hooks/useSpatialGroupDrag';
 import { apiFetch } from '../api';
+import { normalizeSpatialNodes } from '../spatialGroups';
 import type { CanvasNodeData, CanvasSettings } from '../types';
 import type { PortValues, SystemContext } from '../types/workflow';
 
@@ -83,7 +86,7 @@ const CanvasCore = forwardRef<CanvasCoreHandle, CanvasCoreProps>(function Canvas
     onAddGroupNodeAt,
   } = props;
 
-  const [nodes, setNodes, onNodesChangeBase] = useNodesState(initNodes);
+  const [nodes, setNodes, onNodesChangeBase] = useNodesState(normalizeSpatialNodes(initNodes));
   const [edges, setEdges, onEdgesChangeBase] = useEdgesState(initEdges);
   const [compactViewport, setCompactViewport] = useState(
     () => typeof window !== 'undefined' && window.matchMedia('(max-width: 720px)').matches,
@@ -108,6 +111,13 @@ const CanvasCore = forwardRef<CanvasCoreHandle, CanvasCoreProps>(function Canvas
 
   useEffect(() => { nodesRef.current = nodes; });
   useEffect(() => { edgesRef.current = edges; });
+
+  const setSpatialNodes = useCallback<Dispatch<SetStateAction<Node<CanvasNodeData>[]>>>(
+    (value) => setNodes((current) => normalizeSpatialNodes(
+      typeof value === 'function' ? value(current) : value,
+    )),
+    [setNodes],
+  );
 
   const listenersRef = useRef(new Set<() => void>());
   const notifyTimerRef = useRef<number>(0);
@@ -218,7 +228,20 @@ const CanvasCore = forwardRef<CanvasCoreHandle, CanvasCoreProps>(function Canvas
     spawnPreviewNode: (...a) => cbRef.current.spawnPreviewNode(...a),
   }), []);
 
-  const { onNodeDrag, onNodeDragStop } = useSnapAlign(nodes);
+  const snapAlign = useSnapAlign(nodes);
+  const spatialGroupDrag = useSpatialGroupDrag(nodes, setNodes);
+  const onNodeDragStart = useCallback<NodeDragHandler>((event, node, draggedNodes) => {
+    rememberHistory();
+    spatialGroupDrag.onNodeDragStart(event, node, draggedNodes);
+  }, [rememberHistory, spatialGroupDrag]);
+  const onNodeDrag = useCallback<NodeDragHandler>((event, node, draggedNodes) => {
+    snapAlign.onNodeDrag(event, node, draggedNodes);
+    spatialGroupDrag.onNodeDrag(event, node, draggedNodes);
+  }, [snapAlign, spatialGroupDrag]);
+  const onNodeDragStop = useCallback<NodeDragHandler>((event, node, draggedNodes) => {
+    snapAlign.onNodeDragStop(event, node, draggedNodes);
+    spatialGroupDrag.onNodeDragStop(event, node, draggedNodes);
+  }, [snapAlign, spatialGroupDrag]);
   const { onConnect, onNodesChange, onEdgesChange } = useFlowEvents(
     setEdges, onNodesChangeBase, onEdgesChangeBase, rememberHistory, setNodes, setStatus, nodesRef,
   );
@@ -247,7 +270,7 @@ const CanvasCore = forwardRef<CanvasCoreHandle, CanvasCoreProps>(function Canvas
   useImperativeHandle(ref, () => ({
     getNodes: () => nodesRef.current,
     getEdges: () => edgesRef.current,
-    setNodes,
+    setNodes: setSpatialNodes,
     setEdges,
     undo,
     redo,
@@ -257,7 +280,7 @@ const CanvasCore = forwardRef<CanvasCoreHandle, CanvasCoreProps>(function Canvas
     updateNodeData,
     getReactFlow: () => reactFlowRef.current,
     subscribe,
-  }), [setNodes, setEdges, undo, redo, rememberHistory, fitView, runWorkflow, updateNodeData, subscribe]);
+  }), [setSpatialNodes, setEdges, undo, redo, rememberHistory, fitView, runWorkflow, updateNodeData, subscribe]);
 
   if (!nodesLoaded) {
     return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#888' }}>加载节点定义中...</div>;
@@ -275,12 +298,16 @@ const CanvasCore = forwardRef<CanvasCoreHandle, CanvasCoreProps>(function Canvas
       onPaneClick={onPaneClick}
       onPaneContextMenu={onPaneContextMenu}
       onNodeContextMenu={onNodeContextMenu}
+      onNodeDragStart={onNodeDragStart}
       onNodeDrag={onNodeDrag}
       onNodeDragStop={onNodeDragStop}
       nodeTypes={stableNodeTypes}
       snapToGrid={settings.snapToGrid}
       snapGrid={[settings.gridSize, settings.gridSize]}
+      multiSelectionKeyCode="Control"
+      selectionKeyCode="Shift"
       onInit={handleInit}
+      elevateNodesOnSelect={false}
       onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setDragOver(true); }}
       onDragLeave={() => setDragOver(false)}
       onDrop={(e) => {

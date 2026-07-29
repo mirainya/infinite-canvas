@@ -15,6 +15,7 @@ export const createSnapshot = (nodes: Node<CanvasNodeData>[], edges: Edge[]): Ca
       color: node.data.color,
       tags: node.data.tags ?? [],
       note: node.data.note ?? '',
+      ...(node.data.locked ? { locked: true } : {}),
       ...(node.data.defId ? { defId: node.data.defId } : {}),
       ...(node.data.portValues ? { portValues: node.data.portValues } : {}),
     },

@@ -66,6 +66,11 @@ describe('createSnapshot', () => {
     const snap = createSnapshot([makeNode()], []);
     expect(snap.nodes[0].data.defId).toBeUndefined();
   });
+
+  it('preserves a locked group frame', () => {
+    const snap = createSnapshot([makeNode({ data: { title: 'Locked', prompt: '', result: '', locked: true } })], []);
+    expect(snap.nodes[0].data.locked).toBe(true);
+  });
 });
 
 describe('readSavedSnapshot', () => {

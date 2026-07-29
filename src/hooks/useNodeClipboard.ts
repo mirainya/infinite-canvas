@@ -1,6 +1,7 @@
 import { useCallback } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import type { Edge, Node } from 'reactflow';
+import { getSpatialGroupContents, sortSpatialNodes } from '../spatialGroups';
 import type { CanvasNodeData } from '../types';
 
 export function useNodeClipboard(
@@ -16,12 +17,6 @@ export function useNodeClipboard(
     const edges = getEdges();
     const selectedNodeIds = new Set(nodes.filter((node) => node.selected).map((node) => node.id));
     const selectedEdgeIds = new Set(edges.filter((edge) => edge.selected).map((edge) => edge.id));
-
-    nodes.forEach((node) => {
-      if (node.parentNode && selectedNodeIds.has(node.parentNode)) {
-        selectedNodeIds.add(node.id);
-      }
-    });
 
     if (selectedNodeIds.size === 0 && selectedEdgeIds.size === 0) {
       setStatus('未选择内容');
@@ -43,13 +38,7 @@ export function useNodeClipboard(
 
   const deleteNodeById = useCallback(
     (nodeId: string) => {
-      const nodes = getNodes();
       const deletingIds = new Set([nodeId]);
-      nodes.forEach((node) => {
-        if (node.parentNode && deletingIds.has(node.parentNode)) {
-          deletingIds.add(node.id);
-        }
-      });
 
       rememberHistory();
       setNodes((currentNodes) => currentNodes.filter((node) => !deletingIds.has(node.id)));
@@ -58,7 +47,7 @@ export function useNodeClipboard(
       );
       setStatus('已删除节点');
     },
-    [getNodes, rememberHistory, setEdges, setNodes, setStatus],
+    [rememberHistory, setEdges, setNodes, setStatus],
   );
 
   const duplicateNodes = useCallback(
@@ -69,19 +58,15 @@ export function useNodeClipboard(
       copySource.forEach((node) => idMap.set(node.id, crypto.randomUUID()));
 
       const copiedNodes = copySource.map((node) => {
-        const copiedParentId = node.parentNode ? idMap.get(node.parentNode) : undefined;
-
         return {
           ...node,
           id: idMap.get(node.id) ?? crypto.randomUUID(),
-          parentNode: copiedParentId,
-          extent: copiedParentId ? ('parent' as const) : undefined,
-          position: copiedParentId
-            ? node.position
-            : {
-                x: node.position.x + 40,
-                y: node.position.y + 40,
-              },
+          parentNode: undefined,
+          extent: undefined,
+          position: {
+            x: node.position.x + 40,
+            y: node.position.y + 40,
+          },
           selected: true,
           data: {
             title: `${node.data.title} 副本`,
@@ -107,10 +92,10 @@ export function useNodeClipboard(
           selected: false,
         }));
 
-      setNodes((currentNodes) => [
+      setNodes((currentNodes) => sortSpatialNodes([
         ...currentNodes.map((node) => ({ ...node, selected: false })),
         ...copiedNodes,
-      ]);
+      ]));
       setEdges((currentEdges) => [...currentEdges, ...copiedEdges]);
       setStatus(status);
     },
@@ -118,7 +103,14 @@ export function useNodeClipboard(
   );
 
   const duplicateSelected = useCallback(() => {
-    const selectedNodes = getNodes().filter((node) => node.selected);
+    const nodes = getNodes();
+    const selectedIds = new Set(nodes.filter((node) => node.selected).map((node) => node.id));
+    for (const node of nodes) {
+      if (node.selected && node.type === 'groupNode') {
+        getSpatialGroupContents(nodes, node.id).forEach((member) => selectedIds.add(member.id));
+      }
+    }
+    const selectedNodes = nodes.filter((node) => selectedIds.has(node.id));
     if (selectedNodes.length === 0) {
       setStatus('未选择节点');
       return;
@@ -135,7 +127,7 @@ export function useNodeClipboard(
 
       const copySource =
         root.type === 'groupNode'
-          ? nodes.filter((node) => node.id === root.id || node.parentNode === root.id)
+          ? [root, ...getSpatialGroupContents(nodes, root.id)]
           : [root];
 
       duplicateNodes(copySource, '已复制节点');

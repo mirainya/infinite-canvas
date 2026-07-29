@@ -2,6 +2,7 @@ import { useCallback, type Dispatch, type SetStateAction } from 'react';
 import type { Node } from 'reactflow';
 import { COLOR_OPTIONS, GROUP_HEIGHT, GROUP_WIDTH, NODE_TEMPLATES } from '../constants';
 import { getNodeDef } from '../nodes';
+import { sortSpatialNodes } from '../spatialGroups';
 import type { CanvasNodeData, NodeTemplate } from '../types';
 
 const createNodeFromTemplate = (template: NodeTemplate, position: { x: number; y: number }) => ({
@@ -18,11 +19,16 @@ const createNodeFromTemplate = (template: NodeTemplate, position: { x: number; y
   },
 });
 
-const createGroupNode = (position: { x: number; y: number }) => ({
+export const createGroupNode = (
+  position: { x: number; y: number },
+  size: { width: number; height: number } = { width: GROUP_WIDTH, height: GROUP_HEIGHT },
+) => ({
   id: crypto.randomUUID(),
   type: 'groupNode',
   position,
-  style: { width: GROUP_WIDTH, height: GROUP_HEIGHT },
+  style: size,
+  zIndex: 0,
+  dragHandle: '.group-node__header',
   data: { title: '分组区域', prompt: '', result: '', color: COLOR_OPTIONS[1], tags: [], note: '' },
 });
 
@@ -96,17 +102,17 @@ export function useNodeCreation(
 
   const addGroupNode = useCallback(() => {
     rememberHistory();
-    setNodes((currentNodes) => [
+    setNodes((currentNodes) => sortSpatialNodes([
       ...currentNodes,
       createGroupNode(getAutoGroupPosition(currentNodes)),
-    ]);
+    ]));
     setStatus('已添加分组区域');
   }, [rememberHistory, setNodes, setStatus]);
 
   const addGroupNodeAt = useCallback(
     (position: { x: number; y: number }) => {
       rememberHistory();
-      setNodes((currentNodes) => [...currentNodes, createGroupNode(position)]);
+      setNodes((currentNodes) => sortSpatialNodes([...currentNodes, createGroupNode(position)]));
       setStatus('已在当前位置添加分组');
     },
     [rememberHistory, setNodes, setStatus],
@@ -130,6 +136,7 @@ export function useNodeCreation(
             id: crypto.randomUUID(),
             type: 'workflowNode',
             position: getAutoNodePosition(currentNodes.length),
+            zIndex: 1,
             data: { title: def.name, prompt: '', result: '', defId, portValues: initPortValues },
           },
         ];
@@ -157,6 +164,7 @@ export function useNodeCreation(
             id: crypto.randomUUID(),
             type: 'workflowNode',
             position,
+            zIndex: 1,
             data: { title: def.name, prompt: '', result: '', defId, portValues: initPortValues },
           },
         ];

@@ -74,14 +74,14 @@ describe('useNodeClipboard', () => {
       expect(state.edges).toHaveLength(0); // edge connected to deleted node
     });
 
-    it('also deletes children of selected group', () => {
+    it('keeps spatial contents when deleting a selected group frame', () => {
       const group = { ...makeNode('g1', true), type: 'groupNode' };
       const child = makeNode('c1', false, 'g1');
       const h = setup([group, child], []);
 
       act(() => h.result.current.deleteSelected());
 
-      expect(h.getState().nodes).toHaveLength(0);
+      expect(h.getState().nodes.map((node) => node.id)).toEqual(['c1']);
     });
 
     it('reports status when nothing selected', () => {

@@ -1,6 +1,7 @@
 import { Graph, layout } from '@dagrejs/dagre';
 import type { Edge, Node } from 'reactflow';
 import type { CanvasNodeData } from './types';
+import { getSpatialParentGroup, normalizeSpatialNodes } from './spatialGroups';
 
 const DEFAULT_NODE_WIDTH = 280;
 const DEFAULT_NODE_HEIGHT = 420;
@@ -32,13 +33,15 @@ function getNodeSize(node: Node<CanvasNodeData>) {
 
 function getRootNodeId(
   nodeId: string,
-  nodesById: Map<string, Node<CanvasNodeData>>,
+  nodes: Node<CanvasNodeData>[],
 ): string | undefined {
-  let current = nodesById.get(nodeId);
+  let current = nodes.find((node) => node.id === nodeId);
   const visited = new Set<string>();
-  while (current?.parentNode && !visited.has(current.id)) {
+  while (current && !visited.has(current.id)) {
     visited.add(current.id);
-    current = nodesById.get(current.parentNode);
+    const parent = getSpatialParentGroup(nodes, current);
+    if (!parent) break;
+    current = parent;
   }
   return current?.id;
 }
@@ -124,10 +127,10 @@ export function layoutNodesByEdges(
   nodes: Node<CanvasNodeData>[],
   edges: Edge[],
 ): Node<CanvasNodeData>[] {
-  const topLevelNodes = nodes.filter((node) => !node.parentNode);
-  if (topLevelNodes.length < 2) return nodes;
+  const spatialNodes = normalizeSpatialNodes(nodes);
+  const topLevelNodes = spatialNodes.filter((node) => !getSpatialParentGroup(spatialNodes, node));
+  if (topLevelNodes.length < 2) return spatialNodes;
 
-  const nodesById = new Map(nodes.map((node) => [node.id, node]));
   const sizes = new Map<string, { width: number; height: number }>();
   for (const node of topLevelNodes) {
     const size = getNodeSize(node);
@@ -136,8 +139,8 @@ export function layoutNodesByEdges(
 
   const rootEdges: RootEdge[] = [];
   edges.forEach((edge, index) => {
-    const source = getRootNodeId(edge.source, nodesById);
-    const target = getRootNodeId(edge.target, nodesById);
+    const source = getRootNodeId(edge.source, spatialNodes);
+    const target = getRootNodeId(edge.target, spatialNodes);
     if (!source || !target || source === target || !sizes.has(source) || !sizes.has(target)) return;
     rootEdges.push({ id: `${edge.id || 'edge'}-${index}`, source, target });
   });
@@ -166,13 +169,20 @@ export function layoutNodesByEdges(
     rowHeight = Math.max(rowHeight, component.height);
   });
 
-  return nodes.map((node) => {
-    if (node.parentNode) return node;
-    const position = positions.get(node.id);
-    if (!position) return node;
+  const originalRootPositions = new Map(topLevelNodes.map((node) => [node.id, node.position]));
+  return spatialNodes.map((node) => {
+    const rootId = getRootNodeId(node.id, spatialNodes);
+    if (!rootId) return node;
+    const rootPosition = positions.get(rootId);
+    const originalRootPosition = originalRootPositions.get(rootId);
+    if (!rootPosition || !originalRootPosition) return node;
+    if (node.id === rootId) return { ...node, position: rootPosition };
     return {
       ...node,
-      position,
+      position: {
+        x: node.position.x + rootPosition.x - originalRootPosition.x,
+        y: node.position.y + rootPosition.y - originalRootPosition.y,
+      },
     };
   });
 }

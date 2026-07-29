@@ -11,8 +11,6 @@ import {
   StatsPanelConnected,
 } from './components/ConnectedPanels';
 import FloatingToolbar from './components/FloatingToolbar';
-import ProfileModal from './components/ProfileModal';
-import PasswordModal from './components/PasswordModal';
 import {
   NodeLibraryPanel,
   ProjectsPanel,
@@ -38,6 +36,7 @@ import { useNodeClipboard } from './hooks/useNodeClipboard';
 import { useNodeCreation } from './hooks/useNodeCreation';
 import { useNodeFocus } from './hooks/useNodeFocus';
 import { loadNodeDefs, subscribeNodeChanges } from './nodes';
+import { getSpatialParentGroup } from './spatialGroups';
 import { createSnapshot, readCanvasSettings, readSavedSnapshot } from './storage';
 import type { CanvasNodeData, CanvasSettings } from './types';
 import { LoginPage, verifyToken } from './components/LoginPage';
@@ -47,6 +46,8 @@ import { apiFetch } from './api';
 import 'reactflow/dist/style.css';
 
 const ImageEditor = lazy(() => import('./components/ImageEditor'));
+const ProfileModal = lazy(() => import('./components/ProfileModal'));
+const PasswordModal = lazy(() => import('./components/PasswordModal'));
 
 type PanelId = 'search' | 'nodeManager' | 'templates' | 'nodeLibrary' | 'stats' | 'versions' | 'projects' | 'history' | 'settings' | 'inspector' | null;
 
@@ -181,7 +182,7 @@ function Canvas({ onLogout }: { onLogout: () => void }) {
 
   const autoLayoutNodes = useCallback(async () => {
     const currentNodes = getNodes();
-    if (currentNodes.filter((node) => !node.parentNode).length < 2) {
+    if (currentNodes.filter((node) => !getSpatialParentGroup(currentNodes, node)).length < 2) {
       setStatus('至少需要两个节点才能自动排列');
       return;
     }
@@ -530,19 +531,23 @@ function Canvas({ onLogout }: { onLogout: () => void }) {
       )}
 
       {showProfileModal && (
-        <ProfileModal
-          nickname={nickname}
-          avatar={avatar}
-          onClose={() => setShowProfileModal(false)}
-          onSaved={(info) => {
-            updateProfile(info);
-            setShowProfileModal(false);
-          }}
-        />
+        <Suspense fallback={null}>
+          <ProfileModal
+            nickname={nickname}
+            avatar={avatar}
+            onClose={() => setShowProfileModal(false)}
+            onSaved={(info) => {
+              updateProfile(info);
+              setShowProfileModal(false);
+            }}
+          />
+        </Suspense>
       )}
 
       {showPasswordModal && (
-        <PasswordModal onClose={() => setShowPasswordModal(false)} />
+        <Suspense fallback={null}>
+          <PasswordModal onClose={() => setShowPasswordModal(false)} />
+        </Suspense>
       )}
     </main>
   );
