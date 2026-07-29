@@ -1,12 +1,13 @@
 import { createElement } from 'react';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, renderHook, screen } from '@testing-library/react';
 import { ReactFlowProvider } from 'reactflow';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { NodeLibraryPanel } from '../components/SidebarPanels';
+import { InspectorPanel, NodeLibraryPanel, SearchPanel } from '../components/SidebarPanels';
 import CanvasContextMenu from '../components/CanvasContextMenu';
 import TextBoxBody from '../nodes/bodies/TextBoxBody';
 import { getAutoNodePosition } from '../hooks/useNodeCreation';
 import { hasConnectedOutputNode } from '../hooks/useDataFlow';
+import { useNodeSearch } from '../hooks/useNodeSearch';
 import { layoutNodesByEdges } from '../graphLayout';
 import { nodeRegistry } from '../nodes';
 import type { CanvasNodeData } from '../types';
@@ -112,6 +113,82 @@ describe('workflow UI', () => {
     fireEvent.click(screen.getByRole('button', { name: '文本框' }));
 
     expect(onAddNode).toHaveBeenCalledWith('text-box');
+  });
+
+  it('loads the full node list before a search is entered', () => {
+    const nodes = [
+      { id: 'node-1', position: { x: 0, y: 0 }, data: { title: '角色草图', prompt: '', result: '', note: '待补背景' } },
+      { id: 'node-2', position: { x: 0, y: 0 }, data: { title: '背景图', prompt: '', result: '', note: '' } },
+    ] as Node<CanvasNodeData>[];
+    const resetIndex = vi.fn();
+
+    const { result } = renderHook(() => useNodeSearch(nodes, '', resetIndex));
+
+    expect(result.current.map((node) => node.id)).toEqual(['node-1', 'node-2']);
+  });
+
+  it('shows node metadata and notes in search results', () => {
+    const node = {
+      id: 'node-1',
+      position: { x: 0, y: 0 },
+      data: { title: '角色草图', prompt: '', result: '', note: '等待确认服装', tags: ['角色'] },
+    } as Node<CanvasNodeData>;
+
+    render(createElement(SearchPanel, {
+      inputRef: { current: null },
+      query: '',
+      activeIndex: 0,
+      matches: [node],
+      onQueryChange: vi.fn(),
+      onFocusMatch: vi.fn(),
+      onSetActiveIndex: vi.fn(),
+      onFocusNode: vi.fn(),
+    }));
+
+    expect(screen.getByText('全部节点')).toBeTruthy();
+    expect(screen.getByText('#角色')).toBeTruthy();
+    expect(screen.getByText('等待确认服装')).toBeTruthy();
+  });
+
+  it('clears an active node search', () => {
+    const onQueryChange = vi.fn();
+
+    render(createElement(SearchPanel, {
+      inputRef: { current: null },
+      query: '角色',
+      activeIndex: 0,
+      matches: [],
+      onQueryChange,
+      onFocusMatch: vi.fn(),
+      onSetActiveIndex: vi.fn(),
+      onFocusNode: vi.fn(),
+    }));
+
+    fireEvent.click(screen.getByRole('button', { name: '清空搜索' }));
+
+    expect(onQueryChange).toHaveBeenCalledWith('');
+  });
+
+  it('edits a selected node note from the inspector', () => {
+    const node = {
+      id: 'node-1',
+      position: { x: 0, y: 0 },
+      data: { title: '角色草图', prompt: '', result: '', note: '', tags: [] },
+    } as Node<CanvasNodeData>;
+    const onUpdateSelected = vi.fn();
+
+    render(createElement(InspectorPanel, {
+      selectedNodes: [node],
+      selectedTitleText: '角色草图',
+      selectedTagsText: '',
+      selectedNoteText: '',
+      onUpdateSelected,
+      onOpenDetail: vi.fn(),
+    }));
+
+    fireEvent.change(screen.getByLabelText('备注'), { target: { value: '调整眼睛颜色' } });
+
+    expect(onUpdateSelected).toHaveBeenCalledWith({ note: '调整眼睛颜色' });
   });
 
   it('updates text content and output in one history operation', () => {

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState, type Dispatch, type RefObject, type S
 import type { Edge, Node } from 'reactflow';
 import { apiFetch } from '../api';
 import { COLOR_OPTIONS, NODE_TEMPLATES } from '../constants';
-import { getNodesByCategory } from '../nodes';
+import { getNodeDef, getNodesByCategory } from '../nodes';
 import type { CanvasNodeData, CanvasSettings, CanvasVersion, LocalProject, NodeTemplate } from '../types';
 
 type CanvasStats = {
@@ -439,6 +439,8 @@ export function SearchPanel({
   onSetActiveIndex: (index: number) => void;
   onFocusNode: (nodeId: string) => void;
 }) {
+  const hasQuery = query.trim().length > 0;
+
   return (
     <div className="panel-search">
       <div className="panel-search__input-wrap">
@@ -453,27 +455,66 @@ export function SearchPanel({
             if (e.key === 'Enter') onFocusMatch(e.shiftKey ? activeIndex - 1 : activeIndex + 1);
           }}
         />
+        {hasQuery && (
+          <button
+            type="button"
+            className="panel-search__clear"
+            aria-label="清空搜索"
+            title="清空搜索"
+            onClick={() => onQueryChange('')}
+          >×</button>
+        )}
       </div>
-      {matches.length > 0 && (
-        <div className="panel-search__nav">
-          <span className="panel-search__count">{activeIndex + 1}/{matches.length}</span>
-          <button type="button" onClick={() => onFocusMatch(activeIndex - 1)}>▲</button>
-          <button type="button" onClick={() => onFocusMatch(activeIndex + 1)}>▼</button>
+
+      <div className="panel-search__toolbar">
+        <span className="panel-search__scope">{hasQuery ? '搜索结果' : '全部节点'}</span>
+        <span className="panel-search__total">{matches.length} 个</span>
+        {matches.length > 0 && (
+          <div className="panel-search__nav" aria-label="切换搜索结果">
+            <span className="panel-search__count">{Math.min(activeIndex + 1, matches.length)}/{matches.length}</span>
+            <button type="button" aria-label="上一个节点" title="上一个节点" onClick={() => onFocusMatch(activeIndex - 1)}>↑</button>
+            <button type="button" aria-label="下一个节点" title="下一个节点" onClick={() => onFocusMatch(activeIndex + 1)}>↓</button>
+          </div>
+        )}
+      </div>
+
+      {matches.length === 0 && (
+        <div className="panel-search__empty">
+          <span>⌕</span>
+          <strong>没有匹配节点</strong>
+          <small>可搜索标题、标签或备注</small>
         </div>
       )}
+
       {matches.length > 0 && (
         <div className="panel-search__results">
-          {matches.map((node, i) => (
-            <button
-              key={node.id}
-              type="button"
-              className={`panel-search__result ${i === activeIndex ? 'panel-search__result--active' : ''}`}
-              onClick={() => { onSetActiveIndex(i); onFocusNode(node.id); }}
-            >
-              <span className="panel-search__result-dot" style={{ background: node.data.color }} />
-              {node.data.title || '无标题'}
-            </button>
-          ))}
+          {matches.map((node, i) => {
+            const definition = node.data.defId ? getNodeDef(node.data.defId) : undefined;
+            const kind = node.type === 'groupNode' ? '分组' : definition?.category ?? '节点';
+            const tags = node.data.tags ?? [];
+            const note = node.data.note?.trim();
+            return (
+              <button
+                key={node.id}
+                type="button"
+                aria-current={i === activeIndex ? 'true' : undefined}
+                className={`panel-search__result ${i === activeIndex ? 'panel-search__result--active' : ''}`}
+                onClick={() => { onSetActiveIndex(i); onFocusNode(node.id); }}
+              >
+                <span className="panel-search__result-dot" style={{ background: node.data.color }} />
+                <span className="panel-search__result-content">
+                  <strong>{node.data.title || definition?.name || '无标题'}</strong>
+                  <span className="panel-search__result-meta">
+                    <span>{kind}</span>
+                    {tags.slice(0, 2).map((tag) => <span key={tag}>#{tag}</span>)}
+                    {tags.length > 2 && <span>+{tags.length - 2}</span>}
+                  </span>
+                  {note && <span className="panel-search__result-note">{note}</span>}
+                </span>
+                <span className="panel-search__result-arrow" aria-hidden="true">›</span>
+              </button>
+            );
+          })}
         </div>
       )}
     </div>
@@ -482,12 +523,16 @@ export function SearchPanel({
 
 export function InspectorPanel({
   selectedNodes,
+  selectedTitleText,
   selectedTagsText,
+  selectedNoteText,
   onUpdateSelected,
   onOpenDetail,
 }: {
   selectedNodes: Node<CanvasNodeData>[];
+  selectedTitleText: string;
   selectedTagsText: string;
+  selectedNoteText: string;
   onUpdateSelected: (data: Partial<Omit<CanvasNodeData, 'onChange'>>) => void;
   onOpenDetail: (nodeId: string) => void;
 }) {
@@ -498,29 +543,58 @@ export function InspectorPanel({
       ) : (
         <>
           <p className="panel-inspector__count">已选择 {selectedNodes.length} 个节点</p>
-          <div className="panel-inspector__colors">
-            {COLOR_OPTIONS.map((color) => (
-              <button
-                key={color}
-                type="button"
-                className={`panel-inspector__color ${selectedNodes.some((n) => n.data.color === color) ? 'panel-inspector__color--active' : ''}`}
-                style={{ background: color }}
-                aria-label={`设置颜色 ${color}`}
-                onClick={() => onUpdateSelected({ color })}
-              />
-            ))}
+          <div className="panel-inspector__field">
+            <span className="panel-inspector__label">颜色标记</span>
+            <div className="panel-inspector__colors">
+              {COLOR_OPTIONS.map((color) => (
+                <button
+                  key={color}
+                  type="button"
+                  className={`panel-inspector__color ${selectedNodes.some((n) => n.data.color === color) ? 'panel-inspector__color--active' : ''}`}
+                  style={{ background: color }}
+                  aria-label={`设置颜色 ${color}`}
+                  onClick={() => onUpdateSelected({ color })}
+                />
+              ))}
+            </div>
           </div>
-          <input
-            className="panel-inspector__input"
-            value={selectedTagsText}
-            placeholder={selectedNodes.length === 1 ? '标签，用逗号分隔' : '多选时不可编辑标签'}
-            disabled={selectedNodes.length !== 1}
-            onChange={(e) => onUpdateSelected({ tags: parseTags(e.target.value) })}
-          />
+
           {selectedNodes.length === 1 && (
-            <button type="button" className="panel-inspector__detail-btn" onClick={() => onOpenDetail(selectedNodes[0].id)}>
-              打开详情
-            </button>
+            <>
+              <label className="panel-inspector__field" htmlFor="inspector-node-title">
+                <span className="panel-inspector__label">节点标题</span>
+                <input
+                  id="inspector-node-title"
+                  className="panel-inspector__input"
+                  value={selectedTitleText}
+                  placeholder="节点标题"
+                  onChange={(e) => onUpdateSelected({ title: e.target.value })}
+                />
+              </label>
+              <label className="panel-inspector__field" htmlFor="inspector-node-tags">
+                <span className="panel-inspector__label">标签</span>
+                <input
+                  id="inspector-node-tags"
+                  className="panel-inspector__input"
+                  value={selectedTagsText}
+                  placeholder="角色, 草稿, 待确认"
+                  onChange={(e) => onUpdateSelected({ tags: parseTags(e.target.value) })}
+                />
+              </label>
+              <label className="panel-inspector__field" htmlFor="inspector-node-note">
+                <span className="panel-inspector__label">备注</span>
+                <textarea
+                  id="inspector-node-note"
+                  className="panel-inspector__input panel-inspector__textarea"
+                  value={selectedNoteText}
+                  placeholder="记录用途、修改方向或待办事项..."
+                  onChange={(e) => onUpdateSelected({ note: e.target.value })}
+                />
+              </label>
+              <button type="button" className="panel-inspector__detail-btn" onClick={() => onOpenDetail(selectedNodes[0].id)}>
+                打开完整信息
+              </button>
+            </>
           )}
         </>
       )}

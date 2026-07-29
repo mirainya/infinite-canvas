@@ -67,6 +67,8 @@ export const InspectorPanelConnected = memo(function InspectorPanelConnected({
     if (selectedNodes.length !== 1) return '';
     return selectedNodes[0].data.tags?.join(', ') ?? '';
   }, [selectedNodes]);
+  const selectedTitleText = selectedNodes.length === 1 ? selectedNodes[0].data.title : '';
+  const selectedNoteText = selectedNodes.length === 1 ? selectedNodes[0].data.note ?? '' : '';
   const setNodes = useCallback<React.Dispatch<React.SetStateAction<Node<CanvasNodeData>[]>>>(
     (v) => coreRef.current?.setNodes(v), [coreRef],
   );
@@ -83,7 +85,9 @@ export const InspectorPanelConnected = memo(function InspectorPanelConnected({
   return (
     <InspectorPanel
       selectedNodes={selectedNodes}
+      selectedTitleText={selectedTitleText}
       selectedTagsText={selectedTagsText}
+      selectedNoteText={selectedNoteText}
       onUpdateSelected={updateSelectedNodesData}
       onOpenDetail={onOpenDetail}
     />

@@ -257,8 +257,9 @@ function Canvas({ onLogout }: { onLogout: () => void }) {
     (index: number) => {
       const matches = getNodes().filter((n) => {
         const q = searchQuery.trim().toLowerCase();
-        if (!q) return false;
-        return [n.data.title, n.data.prompt, n.data.result, n.data.note, n.data.color, n.data.tags?.join(' '), n.type]
+        if (n.hidden) return false;
+        if (!q) return true;
+        return [n.data.title, n.data.prompt, n.data.result, n.data.note, n.data.color, n.data.tags?.join(' '), n.data.defId, n.type]
           .filter(Boolean).some((v) => String(v).toLowerCase().includes(q));
       });
       if (matches.length === 0) { setStatus('没有匹配节点'); return; }

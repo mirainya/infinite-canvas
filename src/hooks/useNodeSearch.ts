@@ -9,26 +9,29 @@ export function useNodeSearch(
 ) {
   const matches = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
-    if (!normalizedQuery) return [];
+    if (!normalizedQuery) return nodes.filter((node) => !node.hidden);
 
-    return nodes.filter((node) =>
-      [
-        node.data.title,
-        node.data.prompt,
-        node.data.result,
-        node.data.note,
-        node.data.color,
-        node.data.tags?.join(' '),
-        node.type,
-      ]
-        .filter(Boolean)
-        .some((value) => String(value).toLowerCase().includes(normalizedQuery)),
+    return nodes.filter(
+      (node) =>
+        !node.hidden &&
+        [
+          node.data.title,
+          node.data.prompt,
+          node.data.result,
+          node.data.note,
+          node.data.color,
+          node.data.tags?.join(' '),
+          node.data.defId,
+          node.type,
+        ]
+          .filter(Boolean)
+          .some((value) => String(value).toLowerCase().includes(normalizedQuery)),
     );
   }, [nodes, query]);
 
   useEffect(() => {
     resetActiveIndex();
-  }, [query, resetActiveIndex]);
+  }, [query, matches.length, resetActiveIndex]);
 
   return matches;
 }

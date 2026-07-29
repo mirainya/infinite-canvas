@@ -192,8 +192,33 @@ function WorkflowNode({ id, data, selected }: NodeProps<CanvasNodeData>) {
   }, [pv, propagate, id]);
 
   const CustomBody = useMemo(() => (def ? getNodeBody(def.view) : null), [def]);
+  const displayDef = useMemo(() => {
+    if (!def) return null;
+    const title = data.title?.trim();
+    return title && title !== def.name ? { ...def, name: title } : def;
+  }, [data.title, def]);
 
-  if (!def) return <div className="wf wf--error">未知节点</div>;
+  if (!def || !displayDef) return <div className="wf wf--error">未知节点</div>;
+
+  const tags = data.tags ?? [];
+  const note = data.note?.trim();
+  const hasAnnotations = tags.length > 0 || !!note;
+  const annotations = hasAnnotations ? (
+    <div className="workflow-node-annotations nodrag nopan">
+      {tags.length > 0 && (
+        <div className="workflow-node-annotations__tags">
+          {tags.slice(0, 3).map((tag) => <span key={tag}>#{tag}</span>)}
+          {tags.length > 3 && <span>+{tags.length - 3}</span>}
+        </div>
+      )}
+      {note && (
+        <div className="workflow-node-annotations__note" title={note}>
+          <span aria-hidden="true">记</span>
+          <p>{note}</p>
+        </div>
+      )}
+    </div>
+  ) : null;
 
   const renderCtrl = (ctrl: ControlDef) => {
     if (CustomBody && ctrl.kind === 'imageEdit') return null;
@@ -289,13 +314,19 @@ function WorkflowNode({ id, data, selected }: NodeProps<CanvasNodeData>) {
   };
 
   if (CustomBody) {
-    return <CustomBody id={id} def={def} pv={pv} selected={!!selected} running={running} error={error} updatePV={updatePV} updatePVs={updatePVs} handleRun={handleRun} renderCtrl={renderCtrl} renderPorts={renderPorts} renderFooter={renderFooter} />;
+    return (
+      <div className={`workflow-node-frame ${hasAnnotations ? 'workflow-node-frame--annotated' : ''}`}>
+        <CustomBody id={id} def={displayDef} pv={pv} selected={!!selected} running={running} error={error} updatePV={updatePV} updatePVs={updatePVs} handleRun={handleRun} renderCtrl={renderCtrl} renderPorts={renderPorts} renderFooter={renderFooter} />
+        {annotations}
+      </div>
+    );
   }
 
   /* ── Generic workflow node ── */
   return (
+    <div className={`workflow-node-frame ${hasAnnotations ? 'workflow-node-frame--annotated' : ''}`}>
     <div className={`wf ${selected ? 'wf--selected' : ''} ${running ? 'wf--running' : ''} ${success ? 'wf--success' : ''} ${error ? 'wf--error-state' : ''}`}>
-      <div className="wf__title">{def.name}</div>
+      <div className="wf__title">{displayDef.name}</div>
 
       {renderPorts()}
 
@@ -375,6 +406,8 @@ function WorkflowNode({ id, data, selected }: NodeProps<CanvasNodeData>) {
 
       {error && <div className="wf__error">{error}</div>}
       {lightboxSrc && <Lightbox src={lightboxSrc} onClose={() => setLightboxSrc(null)} />}
+    </div>
+    {annotations}
     </div>
   );
 }
