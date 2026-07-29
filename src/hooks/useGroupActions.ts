@@ -22,8 +22,8 @@ export function useGroupActions(
     const itemIds = new Set(selectedItems.map((node) => node.id));
 
     rememberHistory();
-    setNodes((currentNodes) =>
-      currentNodes.map((node) =>
+    setNodes((currentNodes) => {
+      const groupedNodes = currentNodes.map((node) =>
         itemIds.has(node.id)
           ? {
               ...node,
@@ -36,8 +36,12 @@ export function useGroupActions(
               selected: false,
             }
           : node,
-      ),
-    );
+      );
+      return [
+        ...groupedNodes.filter((node) => node.type === 'groupNode'),
+        ...groupedNodes.filter((node) => node.type !== 'groupNode'),
+      ];
+    });
     setStatus('已加入分组');
   }, [getNodes, rememberHistory, setNodes, setStatus]);
 

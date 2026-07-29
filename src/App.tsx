@@ -6,6 +6,7 @@ import {
   ContextMenuConnected,
   DetailDrawerConnected,
   InspectorPanelConnected,
+  NodeManagerPanelConnected,
   SearchPanelConnected,
   StatsPanelConnected,
 } from './components/ConnectedPanels';
@@ -47,10 +48,11 @@ import 'reactflow/dist/style.css';
 
 const ImageEditor = lazy(() => import('./components/ImageEditor'));
 
-type PanelId = 'search' | 'templates' | 'nodeLibrary' | 'stats' | 'versions' | 'projects' | 'history' | 'settings' | 'inspector' | null;
+type PanelId = 'search' | 'nodeManager' | 'templates' | 'nodeLibrary' | 'stats' | 'versions' | 'projects' | 'history' | 'settings' | 'inspector' | null;
 
 const NAV_ITEMS: { id: PanelId; icon: string; label: string }[] = [
   { id: 'search', icon: '⌕', label: '搜索' },
+  { id: 'nodeManager', icon: '▦', label: '节点管理' },
   { id: 'nodeLibrary', icon: '⬡', label: '节点库' },
   { id: 'templates', icon: '✦', label: '模板' },
   { id: 'history', icon: '⏱', label: '历史' },
@@ -220,6 +222,7 @@ function Canvas({ onLogout }: { onLogout: () => void }) {
   );
   const {
     addTemplateNode,
+    addGroupNode,
     addGroupNodeAt,
     addWorkflowNode,
     addWorkflowNodeAt,
@@ -382,7 +385,17 @@ function Canvas({ onLogout }: { onLogout: () => void }) {
                 />
               )}
               {activePanel === 'templates' && <TemplatePanel onAddTemplate={addTemplateNode} getNodes={getNodes} getEdges={getEdges} setNodes={setNodes} setEdges={setEdges} />}
-              {activePanel === 'nodeLibrary' && <NodeLibraryPanel onAddNode={addWorkflowNode} />}
+              {activePanel === 'nodeManager' && (
+                <NodeManagerPanelConnected
+                  coreRef={coreRef}
+                  onAddGroup={addGroupNode}
+                  onFocusNode={focusNodeBound}
+                  onEditNode={openDetail}
+                  rememberHistory={rememberHistory}
+                  setStatus={setStatus}
+                />
+              )}
+              {activePanel === 'nodeLibrary' && <NodeLibraryPanel onAddNode={addWorkflowNode} onAddGroup={addGroupNode} />}
               {activePanel === 'history' && <HistoryPanel />}
               {activePanel === 'stats' && (
                 <StatsPanelConnected
@@ -447,6 +460,7 @@ function Canvas({ onLogout }: { onLogout: () => void }) {
               onPaneContextMenu={openPaneMenu}
               onNodeContextMenu={openNodeMenu}
               onAddWorkflowNodeAt={addWorkflowNodeAt}
+              onAddGroupNodeAt={addGroupNodeAt}
             />
           )}
 

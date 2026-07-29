@@ -64,6 +64,7 @@ interface CanvasCoreProps {
   onPaneContextMenu: (e: React.MouseEvent) => void;
   onNodeContextMenu: (e: React.MouseEvent, node: Node<CanvasNodeData>) => void;
   onAddWorkflowNodeAt: (defId: string, pos: { x: number; y: number }) => void;
+  onAddGroupNodeAt: (pos: { x: number; y: number }) => void;
 }
 
 const CanvasCore = forwardRef<CanvasCoreHandle, CanvasCoreProps>(function CanvasCore(props, ref) {
@@ -79,6 +80,7 @@ const CanvasCore = forwardRef<CanvasCoreHandle, CanvasCoreProps>(function Canvas
     onPaneContextMenu,
     onNodeContextMenu,
     onAddWorkflowNodeAt,
+    onAddGroupNodeAt,
   } = props;
 
   const [nodes, setNodes, onNodesChangeBase] = useNodesState(initNodes);
@@ -284,9 +286,15 @@ const CanvasCore = forwardRef<CanvasCoreHandle, CanvasCoreProps>(function Canvas
       onDrop={(e) => {
         e.preventDefault();
         setDragOver(false);
-        const defId = e.dataTransfer.getData('application/x-def-id');
-        if (!defId || !reactFlowRef.current) return;
+        if (!reactFlowRef.current) return;
         const position = reactFlowRef.current.screenToFlowPosition({ x: e.clientX, y: e.clientY });
+        const nodeKind = e.dataTransfer.getData('application/x-canvas-node-kind');
+        if (nodeKind === 'group') {
+          onAddGroupNodeAt(position);
+          return;
+        }
+        const defId = e.dataTransfer.getData('application/x-def-id');
+        if (!defId) return;
         onAddWorkflowNodeAt(defId, position);
       }}
       fitView={!compactViewport}

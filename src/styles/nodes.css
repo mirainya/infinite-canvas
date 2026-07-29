@@ -129,56 +129,141 @@
 
 /* ===== 12. Group Node ===== */
 .group-node {
+  position: relative;
+  width: 100%;
+  height: 100%;
   min-width: 100%;
   min-height: 100%;
-  padding: 20px;
-  border: 2px dashed var(--border-strong);
-  border-radius: var(--radius-lg);
-  background: rgba(139, 92, 246, 0.04);
+  box-sizing: border-box;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--group-color) 58%, var(--border));
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--group-color) 7%, var(--surface));
+  box-shadow: 0 8px 22px rgba(74, 54, 94, 0.07);
   transition: border-color var(--duration) var(--ease), box-shadow var(--duration) var(--ease);
-  position: relative;
   will-change: transform;
 }
 
 .app--dark .group-node {
-  background: rgba(139, 92, 246, 0.06);
+  background: color-mix(in srgb, var(--group-color) 8%, var(--surface));
 }
 
 .group-node:hover {
-  border-color: var(--primary-light);
-  box-shadow: var(--glow);
+  border-color: color-mix(in srgb, var(--group-color) 76%, var(--border));
+}
+
+.group-node--selected {
+  border-color: var(--group-color);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--group-color) 18%, transparent), 0 10px 28px rgba(74, 54, 94, 0.1);
+}
+
+.group-node--locked {
+  border-style: dashed;
+}
+
+.group-node__header {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 9px;
+  min-height: 44px;
+  padding: 7px 12px;
+  border-bottom: 1px solid color-mix(in srgb, var(--group-color) 22%, var(--border));
+  background: color-mix(in srgb, var(--group-color) 10%, var(--surface));
+}
+
+.group-node__kind {
+  padding: 3px 6px;
+  border-radius: 5px;
+  background: var(--group-color);
+  color: #fff;
+  font-size: 9px;
+  font-weight: 700;
 }
 
 .group-node__title {
+  min-width: 0;
+  width: 100%;
+  padding: 2px 0;
   border: none;
   background: transparent;
-  font-size: 14px;
-  font-weight: 600;
   color: var(--text);
-  outline: none;
   font-family: inherit;
-  width: 100%;
+  font-size: 13px;
+  font-weight: 650;
+  outline: none;
 }
 
 .group-node__title::placeholder {
   color: var(--text-tertiary);
 }
 
+.group-node__locked {
+  color: var(--text-tertiary);
+  font-size: 9px;
+  white-space: nowrap;
+}
+
+.group-node__meta {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 280px;
+  padding: 10px 12px;
+}
+
 .group-node__tags {
-  margin-top: 6px;
+  display: flex;
+  gap: 4px;
+  overflow: hidden;
+}
+
+.group-node__tags span {
+  padding: 2px 5px;
+  border: 1px solid color-mix(in srgb, var(--group-color) 22%, transparent);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--group-color) 9%, var(--surface));
+  color: color-mix(in srgb, var(--group-color) 78%, var(--text));
+  font-size: 9px;
+  white-space: nowrap;
 }
 
 .group-node__note {
-  margin-top: 6px;
+  display: -webkit-box;
+  overflow: hidden;
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 10px;
+  line-height: 1.45;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
-.group-node__hint {
+.group-node__corner {
   position: absolute;
-  bottom: 8px;
-  right: 12px;
-  font-size: 11px;
-  color: var(--text-tertiary);
-  opacity: 0.6;
+  right: 10px;
+  bottom: 10px;
+  display: flex;
+  gap: 3px;
+}
+
+.group-node__corner span {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--group-color) 42%, transparent);
+}
+
+.group-node__resize-line {
+  border-color: var(--group-color) !important;
+}
+
+.group-node__resize-handle {
+  width: 8px !important;
+  height: 8px !important;
+  border: 1px solid var(--surface) !important;
+  border-radius: 3px !important;
+  background: var(--group-color) !important;
 }
 
 /* ===== 13. Shared: Tags & Badges ===== */

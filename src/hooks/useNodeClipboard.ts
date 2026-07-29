@@ -90,6 +90,7 @@ export function useNodeClipboard(
             color: node.data.color,
             tags: node.data.tags ?? [],
             note: node.data.note ?? '',
+            locked: node.data.locked,
             defId: node.data.defId,
             portValues: node.data.portValues ? { ...node.data.portValues } : undefined,
           },

@@ -1,13 +1,15 @@
 import { createElement } from 'react';
-import { cleanup, fireEvent, render, renderHook, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, renderHook, screen } from '@testing-library/react';
 import { ReactFlowProvider } from 'reactflow';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { InspectorPanel, NodeLibraryPanel, SearchPanel } from '../components/SidebarPanels';
+import NodeManagerPanel from '../components/NodeManagerPanel';
 import CanvasContextMenu from '../components/CanvasContextMenu';
 import TextBoxBody from '../nodes/bodies/TextBoxBody';
-import { getAutoNodePosition } from '../hooks/useNodeCreation';
+import { getAutoGroupPosition, getAutoNodePosition } from '../hooks/useNodeCreation';
 import { hasConnectedOutputNode } from '../hooks/useDataFlow';
 import { useNodeSearch } from '../hooks/useNodeSearch';
+import { useGroupActions } from '../hooks/useGroupActions';
 import { layoutNodesByEdges } from '../graphLayout';
 import { nodeRegistry } from '../nodes';
 import type { CanvasNodeData } from '../types';
@@ -33,6 +35,15 @@ describe('workflow UI', () => {
   it('places automatically added nodes on a non-overlapping grid', () => {
     expect(getAutoNodePosition(0)).toEqual({ x: 120, y: 120 });
     expect(getAutoNodePosition(3)).toEqual({ x: 120, y: 740 });
+  });
+
+  it('places a new group beside existing canvas content', () => {
+    const nodes = [
+      { id: 'a', position: { x: 100, y: 60 }, width: 240, data: { title: 'A' } },
+      { id: 'b', position: { x: 500, y: 180 }, width: 280, data: { title: 'B' } },
+    ] as Node<CanvasNodeData>[];
+
+    expect(getAutoGroupPosition(nodes)).toEqual({ x: 900, y: 80 });
   });
 
   it('lays out connected nodes by graph direction without crossing paired edges', () => {
@@ -75,6 +86,28 @@ describe('workflow UI', () => {
     expect(target.position.x).toBeGreaterThan(group.position.x);
   });
 
+  it('keeps a group before its children after grouping selected nodes', () => {
+    let nodes = [
+      { id: 'child', selected: true, position: { x: 140, y: 160 }, data: { title: '子节点' } },
+      { id: 'group', type: 'groupNode', selected: true, position: { x: 100, y: 80 }, data: { title: '分组' } },
+    ] as Node<CanvasNodeData>[];
+    const setNodes = vi.fn((update: React.SetStateAction<Node<CanvasNodeData>[]>) => {
+      nodes = typeof update === 'function' ? update(nodes) : update;
+    });
+    const { result } = renderHook(() => useGroupActions(
+      () => nodes,
+      setNodes,
+      vi.fn(),
+      vi.fn(),
+    ));
+
+    act(() => result.current.groupSelected());
+
+    expect(nodes.map((node) => node.id)).toEqual(['group', 'child']);
+    expect(nodes[1].parentNode).toBe('group');
+    expect(nodes[1].position).toEqual({ x: 40, y: 80 });
+  });
+
   it('packs disconnected nodes into horizontal and vertical rows', () => {
     const nodes = Array.from({ length: 6 }, (_, index) => ({
       id: `node-${index}`,
@@ -108,11 +141,46 @@ describe('workflow UI', () => {
   it('adds a node when its library button is clicked', () => {
     nodeRegistry.set(textBoxDefinition.defId, textBoxDefinition);
     const onAddNode = vi.fn();
-    render(createElement(NodeLibraryPanel, { onAddNode }));
+    render(createElement(NodeLibraryPanel, { onAddNode, onAddGroup: vi.fn() }));
 
     fireEvent.click(screen.getByRole('button', { name: '文本框' }));
 
     expect(onAddNode).toHaveBeenCalledWith('text-box');
+  });
+
+  it('adds a group from the node library', () => {
+    const onAddGroup = vi.fn();
+    render(createElement(NodeLibraryPanel, { onAddNode: vi.fn(), onAddGroup }));
+
+    fireEvent.click(screen.getByRole('button', { name: '添加分组区域' }));
+
+    expect(onAddGroup).toHaveBeenCalledTimes(1);
+  });
+
+  it('filters and manages nodes in batches', () => {
+    const nodes = [
+      { id: 'group-1', type: 'groupNode', position: { x: 0, y: 0 }, data: { title: '角色分组', prompt: '', result: '' } },
+      { id: 'node-1', parentNode: 'group-1', position: { x: 20, y: 60 }, data: { title: '角色线稿', prompt: '', result: '' } },
+    ] as Node<CanvasNodeData>[];
+    const onSetHidden = vi.fn();
+
+    render(createElement(NodeManagerPanel, {
+      nodes,
+      onAddGroup: vi.fn(),
+      onFocusNode: vi.fn(),
+      onEditNode: vi.fn(),
+      onSetHidden,
+      onSetLocked: vi.fn(),
+      onDeleteNodes: vi.fn(),
+    }));
+
+    fireEvent.click(screen.getByRole('checkbox', { name: '选择 角色线稿' }));
+    fireEvent.click(screen.getByRole('button', { name: '批量隐藏' }));
+    expect(onSetHidden).toHaveBeenCalledWith(['node-1'], true);
+
+    fireEvent.click(screen.getByRole('button', { name: '筛选分组' }));
+    expect(screen.getByText('角色分组')).toBeTruthy();
+    expect(screen.queryByText('角色线稿')).toBeNull();
   });
 
   it('loads the full node list before a search is entered', () => {

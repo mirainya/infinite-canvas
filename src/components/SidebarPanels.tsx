@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type Dispatch, type RefObject, type SetStateAction } from 'react';
+import { useCallback, useEffect, useState, type Dispatch, type DragEvent, type RefObject, type SetStateAction } from 'react';
 import type { Edge, Node } from 'reactflow';
 import { apiFetch } from '../api';
 import { COLOR_OPTIONS, NODE_TEMPLATES } from '../constants';
@@ -112,10 +112,45 @@ export function TemplatePanel({ onAddTemplate, getNodes, getEdges, setNodes, set
   );
 }
 
-export function NodeLibraryPanel({ onAddNode }: { onAddNode: (defId: string) => void }) {
+const setNodeDragPreview = (event: DragEvent<HTMLButtonElement>) => {
+  event.dataTransfer.effectAllowed = 'move';
+  const ghost = event.currentTarget.cloneNode(true) as HTMLElement;
+  ghost.style.position = 'absolute';
+  ghost.style.top = '-1000px';
+  ghost.style.width = `${event.currentTarget.offsetWidth}px`;
+  ghost.classList.add('drag-ghost');
+  document.body.appendChild(ghost);
+  event.dataTransfer.setDragImage(ghost, 0, 0);
+  requestAnimationFrame(() => ghost.remove());
+};
+
+export function NodeLibraryPanel({ onAddNode, onAddGroup }: {
+  onAddNode: (defId: string) => void;
+  onAddGroup: () => void;
+}) {
   const grouped = getNodesByCategory();
   return (
     <div className="panel-templates">
+      <div className="panel-node-library__category">
+        <h3 className="panel-node-library__category-title">画布组织</h3>
+        <button
+          className="panel-templates__item panel-templates__item--group"
+          type="button"
+          draggable
+          aria-label="添加分组区域"
+          onClick={onAddGroup}
+          onDragStart={(event) => {
+            event.dataTransfer.setData('application/x-canvas-node-kind', 'group');
+            setNodeDragPreview(event);
+          }}
+        >
+          <span className="panel-templates__group-icon" aria-hidden="true" />
+          <span className="panel-templates__item-copy">
+            <strong>分组区域</strong>
+            <small>创作分区</small>
+          </span>
+        </button>
+      </div>
       {Array.from(grouped.entries()).map(([category, defs]) => (
         <div key={category} className="panel-node-library__category">
           <h3 className="panel-node-library__category-title">{category}</h3>
@@ -128,15 +163,7 @@ export function NodeLibraryPanel({ onAddNode }: { onAddNode: (defId: string) => 
               onClick={() => onAddNode(def.defId)}
               onDragStart={(e) => {
                 e.dataTransfer.setData('application/x-def-id', def.defId);
-                e.dataTransfer.effectAllowed = 'move';
-                const ghost = e.currentTarget.cloneNode(true) as HTMLElement;
-                ghost.style.position = 'absolute';
-                ghost.style.top = '-1000px';
-                ghost.style.width = `${e.currentTarget.offsetWidth}px`;
-                ghost.classList.add('drag-ghost');
-                document.body.appendChild(ghost);
-                e.dataTransfer.setDragImage(ghost, 0, 0);
-                requestAnimationFrame(() => ghost.remove());
+                setNodeDragPreview(e);
               }}
             >
               <span className="panel-templates__dot" style={{ background: '#34d399' }} />

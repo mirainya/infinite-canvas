@@ -33,6 +33,20 @@ export function getAutoNodePosition(index: number) {
   };
 }
 
+export function getAutoGroupPosition(nodes: Node<CanvasNodeData>[]) {
+  const rootNodes = nodes.filter((node) => !node.parentNode);
+  if (rootNodes.length === 0) return { x: 120, y: 120 };
+
+  const rightEdge = Math.max(...rootNodes.map((node) => {
+    const styleWidth = Number.parseFloat(String(node.style?.width ?? ''));
+    const width = node.width ?? (Number.isFinite(styleWidth) ? styleWidth : 320);
+    return node.position.x + width;
+  }));
+  const topEdge = Math.min(...rootNodes.map((node) => node.position.y));
+
+  return { x: Math.round(rightEdge + 120), y: Math.round(Math.max(80, topEdge)) };
+}
+
 export function useNodeCreation(
   setNodes: Dispatch<SetStateAction<Node<CanvasNodeData>[]>>,
   rememberHistory: () => void,
@@ -84,7 +98,7 @@ export function useNodeCreation(
     rememberHistory();
     setNodes((currentNodes) => [
       ...currentNodes,
-      createGroupNode({ x: 80 + currentNodes.length * 20, y: 80 + currentNodes.length * 20 }),
+      createGroupNode(getAutoGroupPosition(currentNodes)),
     ]);
     setStatus('已添加分组区域');
   }, [rememberHistory, setNodes, setStatus]);

@@ -8,6 +8,7 @@ export type CanvasNodeData = {
   color?: string;
   tags?: string[];
   note?: string;
+  locked?: boolean;
   defId?: string;
   portValues?: PortValues;
 };

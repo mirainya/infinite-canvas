@@ -1,5 +1,5 @@
-import { memo, useCallback, useMemo } from 'react';
-import { type Node } from 'reactflow';
+import { lazy, memo, Suspense, useCallback, useMemo } from 'react';
+import { type Edge, type Node } from 'reactflow';
 import type { CanvasCoreHandle } from './CanvasCore';
 import DetailDrawer from './DetailDrawer';
 import CanvasContextMenu from './CanvasContextMenu';
@@ -12,6 +12,36 @@ import { useCanvasData } from '../hooks/useCanvasData';
 import { useCanvasStats } from '../hooks/useCanvasStats';
 import { useNodeSearch } from '../hooks/useNodeSearch';
 import type { CanvasNodeData, ContextMenuState } from '../types';
+
+const NodeManagerPanel = lazy(() => import('./NodeManagerPanel'));
+
+function expandGroupChildren(nodes: Node<CanvasNodeData>[], nodeIds: string[]) {
+  const expanded = new Set(nodeIds);
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const node of nodes) {
+      if (node.parentNode && expanded.has(node.parentNode) && !expanded.has(node.id)) {
+        expanded.add(node.id);
+        changed = true;
+      }
+    }
+  }
+  return expanded;
+}
+
+function expandParentGroups(nodes: Node<CanvasNodeData>[], nodeIds: Set<string>) {
+  const nodeById = new Map(nodes.map((node) => [node.id, node]));
+  const expanded = new Set(nodeIds);
+  for (const nodeId of nodeIds) {
+    let parentId = nodeById.get(nodeId)?.parentNode;
+    while (parentId) {
+      expanded.add(parentId);
+      parentId = nodeById.get(parentId)?.parentNode;
+    }
+  }
+  return expanded;
+}
 
 export const SearchPanelConnected = memo(function SearchPanelConnected({
   coreRef, inputRef, query, activeIndex, onQueryChange, onFocusMatch, onSetActiveIndex, onFocusNode,
@@ -91,6 +121,72 @@ export const InspectorPanelConnected = memo(function InspectorPanelConnected({
       onUpdateSelected={updateSelectedNodesData}
       onOpenDetail={onOpenDetail}
     />
+  );
+});
+
+export const NodeManagerPanelConnected = memo(function NodeManagerPanelConnected({
+  coreRef,
+  onAddGroup,
+  onFocusNode,
+  onEditNode,
+  rememberHistory,
+  setStatus,
+}: {
+  coreRef: React.RefObject<CanvasCoreHandle | null>;
+  onAddGroup: () => void;
+  onFocusNode: (id: string) => void;
+  onEditNode: (id: string) => void;
+  rememberHistory: () => void;
+  setStatus: (status: string) => void;
+}) {
+  const { nodes } = useCanvasData(coreRef);
+  const setNodes = useCallback<React.Dispatch<React.SetStateAction<Node<CanvasNodeData>[]>>>(
+    (value) => coreRef.current?.setNodes(value), [coreRef],
+  );
+  const setEdges = useCallback<React.Dispatch<React.SetStateAction<Edge[]>>>(
+    (value) => coreRef.current?.setEdges(value), [coreRef],
+  );
+
+  const setHidden = useCallback((nodeIds: string[], hidden: boolean) => {
+    const descendants = expandGroupChildren(nodes, nodeIds);
+    const affected = hidden ? descendants : expandParentGroups(nodes, descendants);
+    rememberHistory();
+    setNodes((current) => current.map((node) => (affected.has(node.id) ? { ...node, hidden } : node)));
+    setStatus(hidden ? `已隐藏 ${affected.size} 个节点` : `已显示 ${affected.size} 个节点`);
+  }, [nodes, rememberHistory, setNodes, setStatus]);
+
+  const setLocked = useCallback((nodeIds: string[], locked: boolean) => {
+    const affected = expandGroupChildren(nodes, nodeIds);
+    rememberHistory();
+    setNodes((current) => current.map((node) => (
+      affected.has(node.id)
+        ? { ...node, draggable: !locked, data: { ...node.data, locked } }
+        : node
+    )));
+    setStatus(locked ? `已锁定 ${affected.size} 个节点的位置` : `已解锁 ${affected.size} 个节点的位置`);
+  }, [nodes, rememberHistory, setNodes, setStatus]);
+
+  const deleteNodes = useCallback((nodeIds: string[]) => {
+    const deleting = expandGroupChildren(nodes, nodeIds);
+    if (!window.confirm(`确定删除选中的 ${deleting.size} 个节点吗？`)) return;
+    rememberHistory();
+    setNodes((current) => current.filter((node) => !deleting.has(node.id)));
+    setEdges((current) => current.filter((edge) => !deleting.has(edge.source) && !deleting.has(edge.target)));
+    setStatus(`已删除 ${deleting.size} 个节点`);
+  }, [nodes, rememberHistory, setEdges, setNodes, setStatus]);
+
+  return (
+    <Suspense fallback={<div className="panel-node-manager__loading">正在读取节点...</div>}>
+      <NodeManagerPanel
+        nodes={nodes}
+        onAddGroup={onAddGroup}
+        onFocusNode={onFocusNode}
+        onEditNode={onEditNode}
+        onSetHidden={setHidden}
+        onSetLocked={setLocked}
+        onDeleteNodes={deleteNodes}
+      />
+    </Suspense>
   );
 });
 

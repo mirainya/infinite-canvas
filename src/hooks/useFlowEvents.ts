@@ -67,7 +67,8 @@ export function useFlowEvents(
     (changes: NodeChange[]) => {
       const hasRemove = changes.some((c) => c.type === 'remove');
       const hasDragEnd = changes.some((c) => c.type === 'position' && !c.dragging && c.position);
-      if (hasRemove || hasDragEnd) rememberHistory();
+      const hasResizeEnd = changes.some((c) => c.type === 'dimensions' && c.resizing === false);
+      if (hasRemove || hasDragEnd || hasResizeEnd) rememberHistory();
 
       onNodesChangeBase(changes);
     },
