@@ -135,7 +135,7 @@
   min-width: 100%;
   min-height: 100%;
   box-sizing: border-box;
-  overflow: hidden;
+  overflow: visible;
   border: 1px solid color-mix(in srgb, var(--group-color) 58%, var(--border));
   border-radius: 8px;
   background: color-mix(in srgb, var(--group-color) 7%, var(--surface));
@@ -169,6 +169,7 @@
   min-height: 44px;
   padding: 7px 12px;
   border-bottom: 1px solid color-mix(in srgb, var(--group-color) 22%, var(--border));
+  border-radius: 7px 7px 0 0;
   background: color-mix(in srgb, var(--group-color) 10%, var(--surface));
 }
 
@@ -255,15 +256,38 @@
 }
 
 .group-node__resize-line {
+  z-index: 3 !important;
+  opacity: 0;
   border-color: var(--group-color) !important;
+  border-width: 2px !important;
+  pointer-events: none !important;
+  transition: opacity var(--duration) var(--ease);
 }
 
 .group-node__resize-handle {
-  width: 8px !important;
-  height: 8px !important;
-  border: 1px solid var(--surface) !important;
+  z-index: 4 !important;
+  width: 12px !important;
+  height: 12px !important;
+  opacity: 0;
+  border: 2px solid var(--surface) !important;
   border-radius: 3px !important;
   background: var(--group-color) !important;
+  box-shadow: 0 2px 6px color-mix(in srgb, var(--group-color) 32%, transparent);
+  pointer-events: none !important;
+  transition: opacity var(--duration) var(--ease), transform var(--duration) var(--ease);
+}
+
+.group-node:hover > .group-node__resize-line,
+.group-node--selected > .group-node__resize-line,
+.group-node:hover > .group-node__resize-handle,
+.group-node--selected > .group-node__resize-handle {
+  opacity: 1;
+  pointer-events: all !important;
+}
+
+.group-node:hover > .group-node__resize-handle:hover,
+.group-node--selected > .group-node__resize-handle:hover {
+  transform: scale(1.14);
 }
 
 /* ===== 13. Shared: Tags & Badges ===== */

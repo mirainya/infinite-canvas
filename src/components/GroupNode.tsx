@@ -14,7 +14,7 @@ function GroupNode({ id, data, selected }: NodeProps<CanvasNodeData>) {
       style={{ '--group-color': color } as CSSProperties}
     >
       <NodeResizer
-        isVisible={!!selected && !data.locked}
+        isVisible={!data.locked}
         minWidth={360}
         minHeight={240}
         lineClassName="group-node__resize-line"
